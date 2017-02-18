@@ -2,8 +2,9 @@ import os
 import requests
 import tarfile
 
+
 class CBTDataSet(object):
-    def __init__(self, data_dir, in_memory=False, name="Data", *args, **kwargs):
+    def __init__(self, data_dir, in_memory=False, name="dts", *args, **kwargs):
         self.in_memory = in_memory
         self.data_dir = data_dir
         self.name = name
@@ -12,7 +13,8 @@ class CBTDataSet(object):
         file_name = os.path.join(self.data_dir, self.name + ".tar.gz")
         try:
             headers = {
-                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0',
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:10.0) \
+                               Gecko/20100101 Firefox/10.0',
             }
             r = requests.get(url, headers=headers)
             with open(file_name, 'wb') as outfile:
