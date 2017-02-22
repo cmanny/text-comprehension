@@ -10,6 +10,9 @@ class CBTDataSet(object):
         self.name = name
 
     def from_url(self, url):
+        self.inner_data = os.path.join(self.data_dir, self.name)
+        if os.exists(self.inner_data):
+            return
         file_name = os.path.join(self.data_dir, self.name + ".tar.gz")
         try:
             headers = {
@@ -26,6 +29,19 @@ class CBTDataSet(object):
             directory = os.path.join(self.data_dir, self.name)
             os.mkdir(directory)
             tf.extractall(directory)
+
+    # I really shoudn't do this
+    def get_ne_data():
+        data_dir = os.join(self.inner_data, "CBTest", "data")
+        with open(os.join(data_dir, "cbtest_NE_test_2500ex.txt") as test:
+            self.test = test.readlines()
+
+        with open(os.join(data_dir, "cbtest_NE_train.txt") as train:
+            self.train = train.readlines()
+
+        with open(os.join(data_dir, "cbtest_NE_valid_2000ex.txt") as valid:
+            self.valid = valid.readlines()
+
 
 if __name__ == "__main__":
     d = CBTDataSet("data", name="cbt_data")
