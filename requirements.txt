@@ -1,2 +1,5 @@
 tensorflow
 pep8
+gensim
+tqdm
+nltk

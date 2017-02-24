@@ -1,9 +1,0 @@
-Introduction/Conclusion: Why neural networks for language and how this course fits into the wider fields of Natural Language Processing, Computational Linguistics, and Machine Learning.
-Simple Recurrent Neural Networks: model definition; the backpropagation through time optimisation algorithm; small scale language modelling and text embedding.
-Advanced Recurrent Neural Networks: Long Short Term Memory and Gated Recurrent Units; large scale language modeling, open vocabulary language modelling and morphology.
-Scale: minibatching and GPU implementation issues.
-Speech Recognition: Neural Networks for acoustic modelling and end-to-end speech models.
-Sequence to Sequence Models: Generating from an embedding; attention mechanisms; Machine Translation; Image Caption generation.
-Question Answering: QA tasks and paradigms; neural attention mechanisms and Memory Networks for QA.
- Advanced Memory: Neural Turing Machine, Stacks and other structures.
-Linguistic models: syntactic and seminatic parsing with recurrent networks.

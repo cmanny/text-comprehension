@@ -1,7 +1,7 @@
 import tensorflow as tf
-from tensorflow.models.rnn.rnn_cell import RNNCell, linear
 
-class LSTMCell(RNNCell):
+
+class LSTMCell(tf.contrib.rnn.RNNCell):
   """Almost same with tf.models.rnn.rnn_cell.BasicLSTMCell
   except adding c to inputs and h to calculating gates,
   adding a skip connection from the input of current time t,
@@ -45,7 +45,7 @@ class LSTMCell(RNNCell):
     return new_y, new_y
 
 
-class MultiRNNCellWithSkipConn(RNNCell):
+class MultiRNNCellWithSkipConn(tf.contrib.rnn.RNNCell):
   """Almost same with tf.models.rnn.rnn_cell.MultiRnnCell adding
   a skip connection from the input of current time t and using
   _num_units not state size because LSTMCell returns only [h] not [c, h].
@@ -90,7 +90,7 @@ class MultiRNNCellWithSkipConn(RNNCell):
           cur_state = tf.slice(
               state, [0, cur_state_pos], [-1, cell.state_size])
           cur_state_pos += cell.state_size
-          # Add skip connecti   on from the input of current time t.
+          # Add skip connection from the input of current time t.
           if i != 0:
             first_layer_input = first_layer_input
           else:

@@ -1,4 +1,4 @@
 #!/bin/bash
 set -e
 
-pep8 .
+pep8 efficient_reader/
