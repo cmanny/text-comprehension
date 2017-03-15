@@ -1,21 +1,3 @@
-# Modification of https://tensorflow.googlesource.com/tensorflow/+/master/tensorflow/models/rnn/translate/data_utils.py
-#
-# Copyright 2015 Google Inc. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#         http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-
-"""Utilities for downloading data from WMT, tokenizing, vocabularies."""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -26,16 +8,19 @@ import sys
 import gzip
 import time
 import tarfile
+import pprint
+import numpy as np
+
 from tqdm import *
 from glob import glob
 from collections import defaultdict
 from gensim import corpora
 from nltk.corpus import stopwords
 from nltk.tokenize import RegexpTokenizer
-
 tokenizer = RegexpTokenizer(r'\w+')
-
 from tensorflow.python.platform import gfile
+
+pp = pprint.PrettyPrinter()
 
 # Regular expressions used to tokenize.
 _WORD_SPLIT = re.compile("([.,!?\"':;)(])")
@@ -111,8 +96,7 @@ def initialize_vocabulary(vocabulary_path):
         raise ValueError("Vocabulary file %s not found.", vocabulary_path)
 
 
-def sentence_to_token_ids(sentence, vocabulary,
-                                                    tokenizer=None, normalize_digits=True):
+def sentence_to_token_ids(sentence, vocabulary, tokenizer=None, normalize_digits=True):
     """Convert a string to list of integers representing token-ids.
 
     For example, a sentence "I have a dog" may become tokenized into
@@ -141,7 +125,7 @@ def sentence_to_token_ids(sentence, vocabulary,
 
 
 def data_to_token_ids(data_path, target_path, vocab,
-                                            tokenizer=None, normalize_digits=True):
+                      tokenizer=None, normalize_digits=True):
     """Tokenize data file and turn into token-ids using given vocabulary file.
 
     This function loads data line-by-line from data_path, calls the above
@@ -240,25 +224,6 @@ def load_dataset(data_dir, dataset_name, vocab_size):
     for idx, fname in enumerate(train_files):
         with open(fname) as f:
             yield f.read().split("\n\n"), idx, max_idx
-
-
-if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print(" [*] usage: python data_utils.py DATA_DIR DATASET_NAME VOCAB_SIZE")
-    else:
-        data_dir = sys.argv[1]
-        dataset_name = sys.argv[2]
-        if len(sys.argv) > 3:
-            vocab_size = sys.argv[3]
-        else:
-            vocab_size = 100000
-
-        prepare_data(data_dir, dataset_name, int(vocab_size))
-
-import pprint
-import numpy as np
-
-pp = pprint.PrettyPrinter()
 
 def array_pad(array, width, pad=-1, force=False):
     max_length = max(map(len, array))

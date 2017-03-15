@@ -63,8 +63,10 @@ model_dict = {
 }
 
 def main(_):
+    tf.logging.set_verbosity(tf.logging.ERROR)
     data_set = CBTDataSet("data", name="cbt_data")
     data_set.auto_setup()
+    print(data_set.data_dir)
     if not os.path.exists(args.checkpoints):
         print(" [*] Creating checkpoint directory...")
         os.makedirs(args.checkpoint_dir)
@@ -76,7 +78,7 @@ def main(_):
         if not args.forward_only:
             model.train(sess, args.vocab_size, args.epoch,
             args.learning_rate, .9, .95,
-            args.data_dir, args.dataset)
+            args.data_dir, data_set.data_dir)
         else:
             model.load(sess, args.checkpoints, args.dataset)
 
