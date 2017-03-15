@@ -1,18 +1,91 @@
-import os
 import requests
 import tarfile
+import os
+import pickle
+import re
+from collections import Counter
+import tensorflow as tf
+
+class Sampler(object):
+    def __init__(self, name, filter_func):
+        self.name = name
+        self.filter_func = filter_func
+
+        self.out_name = os.path.join("tfrecords/", name + ".tfrecords")
+        self.total_passed = 0
+        self.total_called = 0
+
+    def open(self):
+        self.writer = tf.python_io.TFRecordWriter(self.out_name)
+
+
+    def accuracy(self):
+        return 100 * self.total_passed / self.total_called
+
+    @classmethod
+    def tfrecord_example(self, ic, iq, ia):
+        return tf.train.Example(
+             features = tf.train.Features(
+                 feature = {
+                     'context': tf.train.Feature(
+                         int64_list=tf.train.Int64List(value=ic)),
+                     'query': tf.train.Feature(
+                         int64_list=tf.train.Int64List(value=iq)),
+                     'answer': tf.train.Feature(
+                         int64_list=tf.train.Int64List(value=ia))
+                     }
+              )
+        )
+
+    def __call__(self, example):
+        self.total_called += 1
+        if self.filter_func(example):
+            self.total_passed += 1
+            i_cqac = example.index_list()
+            example = self.tfrecord_example(*i_cqac[:-1])
+            serialized = example.SerializeToString()
+            self.writer.write(serialized)
+
+
+
+class CBTExample(object):
+    def __init__(self, index, context, query, answer, candidates, vocab=None):
+        self.index = index
+        self.context = context
+        self.query = query
+        self.answer = answer
+        self.candidates = candidates
+        self.vocab = vocab
+
+    def index_list(self):
+        self.i_context = [self.vocab[token] for token in self.context]
+        self.i_query = [self.vocab[token] for token in self.query]
+        self.i_answer = [self.vocab[token] for token in self.answer]
+        self.i_candidates = [self.vocab[token] for token in self.candidates]
+        return (self.i_context, self.i_query, self.i_answer, self.i_candidates)
 
 
 class CBTDataSet(object):
-    def __init__(self, data_dir, in_memory=False, name="dts", *args, **kwargs):
+    _NAMED_ENTITY = {
+        "train": "cbtest_NE_train.txt",
+        "valid": "cbtest_NE_valid_2000ex.txt",
+        "test": "cbtest_NE_test_2500ex.txt"
+    }
+    _COMMON_NOUN = {
+        "train": "cbtest_CN_train.txt",
+        "valid": "cbtest_CN_valid_2000ex.txt",
+        "test": "cbtest_CN_test_2500ex.txt"
+    }
+
+    def __init__(self, data_dir="data", in_memory=False, name="cbt_data",
+                 *args, **kwargs):
         self.in_memory = in_memory
         self.top_data_dir = data_dir
         self.name = name
 
-    # Function to automatically handle data
-    def auto_setup(self):
+        if not os.path.exists(data_dir):
+            os.mkdir(data_dir)
         self.from_url("http://www.thespermwhale.com/jaseweston/babi/CBTest.tgz")
-        self.get_ne_data()
 
     def from_url(self, url):
         self.inner_data = os.path.join(self.top_data_dir, self.name)
@@ -30,100 +103,109 @@ class CBTDataSet(object):
         except IOError as e:
             print("Could not get the file from URL: " + url)
             raise
-        with tarfile.open(name=file_name) as tf:
+        with tarfile.open(name=file_name) as trf:
             directory = os.path.join(self.top_data_dir, self.name)
             os.mkdir(directory)
-            tf.extractall(directory)
+            trf.extractall(directory)
 
     @property
-    def data_dir(self):
+    def inner_data_dir(self):
         return os.path.join(self.inner_data, "CBTest", "data")
 
-    # I really shoudn't do this
-    def get_ne_data(self):
-        with open(os.path.join(self.data_dir, "cbtest_NE_test_2500ex.txt")) as test:
-            self.test = test.readlines()
-            print(self.test[0])
+    @classmethod
+    def clean(self, string):
+        return [re.sub("[\n0-9]", '', x) for x in string.split(" ")]
 
-        with open(os.path.join(self.data_dir, "cbtest_NE_train.txt")) as train:
-            self.train = train.readlines()
+    @classmethod
+    def get_cqac_words(self, cqac):
+        cqac_split = cqac.split("\n21 ")
+        context = self.clean(cqac_split[0])
+        last_line = cqac_split[1]
+        query, answer, _, candidates = [self.clean(x) for x in last_line.split("\t")]
+        candidates = candidates[0].split("|")
+        return context, query, answer, candidates
 
-        with open(os.path.join(self.data_dir, "cbtest_NE_valid_2000ex.txt")) as valid:
-            self.valid = valid.readlines()
-
-import os
-import pickle
-from collections import Counter
-import tensorflow as tf
-
-def get_cqa_words(cqa):
-    cqa_split = cqa.split("\n21 ")
-    context = cqa_split[0].split(" ")
-    last_line = cqa_split[1]
-    query, answer = [x.split(" ") for x in last_line.split(" ", 2)[:2]]
-    return context, query, answer
-
-def counts():
-    cache = 'counter.pickle'
-    if os.path.exists(cache):
-        with open(cache, 'r') as f:
-            return pickle.load(f)
-
-    directories = ['data/train/', 'data/valid/', 'data/test/']
-    files = [directory + file_name for directory in directories for file_name in os.listdir(directory)]
-    counter = Counter()
-    for file_name in files:
-        with open(file_name, 'r') as f:
-            file_string = f.read()
-            for cqa in file_string.split("\n\n"):
-                    if len(cqa) < 5:
+    def make_vocab(self, example_set):
+        counter = Counter()
+        print("[*] Generating vocabulary")
+        for s, f_name in example_set.items():
+            full_path = os.path.join(self.inner_data_dir, f_name)
+            with open(full_path, 'r') as f:
+                file_string = f.read()
+                for cqac in file_string.split("\n\n"):
+                    if len(cqac) < 5:
                         break
-                    context, query, answer = get_cqa_words(cqa)
+                    context, query, answer, _ = self.get_cqac_words(cqac)
                     for token in context + query + answer:
                         counter[token] += 1
-    with open(cache, 'w') as f:
-        pickle.dump(counter, f)
+        # Get all words in counter, and create word-id mapping
+        words, _ = zip(*counter.most_common())
+        vocab = {token: i for i, token in enumerate(words)}
+        return vocab, words
 
-    return counter
+    def _process_set(self, sample_dict, vocab_path, group):
+        self.vocab = {}
+        if os.path.exists(vocab_path):
+            with open(vocab_path, 'r') as vf:
+                self.vocab = pickle.load(vf)
+        else:
+            self.vocab, words = self.make_vocab(group)
+            with open(vocab_path, 'w') as vf:
+                pickle.dump(self.vocab, vf)
+            embedding_str = "\n".join(w for w in words)
+            with open(os.path.join("cache", "embedding.meta"), 'w') as ef:
+                ef.write(embedding_str)
 
-def tokenize(index, word):
-    directories = ['data/train/', 'data/valid/', 'data/test/']
-    for directory in directories:
-        out_name = directory.split('/')[-2] + '.tfrecords'
-        writer = tf.python_io.TFRecordWriter(out_name)
-        files = map(lambda file_name: directory + file_name, os.listdir(directory))
-        for file_name in files:
-            with open(file_name, 'r') as f:
+        filtered_dict = {
+            "train": [],
+            "valid": [],
+            "test": []
+        }
+
+        # Filter out existing samples
+        for group, sample_list in sample_dict.items():
+            for s in sample_list:
+                if not os.path.exists("tfrecords/" + s.name + ".tfrecords"):
+                    filtered_dict[group] += [s]
+                    s.open()
+
+        if sum(len(x) for x in filtered_dict.values()) == 0:
+            print("[*] Samples already complete, rerun if not")
+            return
+        samples_str = "\n - ".join(y.name for x in filtered_dict.values() for y in x)
+        print("[*] Generating samples for \n - " + samples_str)
+
+        # stream data
+        for s, f_name in group.items():
+            full_path = os.path.join(self.inner_data_dir, f_name)
+            with open(full_path, 'r') as f:
                 file_string = f.read()
-                for cqa in file_string.split("\n\n"):
-                    if len(cqa) < 5:
+                for i, cqac in enumerate(file_string.split("\n\n")):
+                    print(i)
+                    if len(cqac) < 5:
                         break
-                    context, query, answer = get_cqa_words(cqa)
-                    context = [index[token] for token in context]
-                    query = [index[token] for token in query]
-                    answer = [index[token] for token in answer]
-                    example = tf.train.Example(
-                         features = tf.train.Features(
-                             feature = {
-                                 'document': tf.train.Feature(
-                                     int64_list=tf.train.Int64List(value=context)),
-                                 'query': tf.train.Feature(
-                                     int64_list=tf.train.Int64List(value=query)),
-                                 'answer': tf.train.Feature(
-                                     int64_list=tf.train.Int64List(value=answer))
-                                 }
-                          )
+                    context, query, answer, candidates = self.get_cqac_words(cqac)
+                    example = CBTExample(
+                        i,
+                        context,
+                        query,
+                        answer,
+                        candidates,
+                        vocab=self.vocab
                     )
-                    serialized = example.SerializeToString()
-                    writer.write(serialized)
+                    for sampler in filtered_dict[s]:
+                        sampler(example)
+        for group, sample_list in filtered_dict.items():
+            print(group)
+            for s in sample_list:
+                print("{} {}".format(s.name, s.accuracy()))
 
-def main():
-    counter = counts()
-    print('num words',len(counter))
-    word, _ = zip(*counter.most_common())
-    index = {token: i for i, token in enumerate(word)}
-    tokenize(index, word)
-    print('DONE')
+    def common_noun(self, sample_dict):
+        print("[*] Creating records from Common Nouns")
+        vocab_path = os.path.join("cache", "common_noun_vocab.pickle")
+        self._process_set(sample_dict, vocab_path, self._COMMON_NOUN)
 
-if __name__ == "__main__":
-    main()
+    def named_entities(self, sample_dict):
+        print("[*] Creating records from Named Entities")
+        vocab_path = os.path.join("cache", "named_entities_vocab.pickle")
+        self._process_set(sample_dict, vocab_path, self._NAMED_ENTITY)

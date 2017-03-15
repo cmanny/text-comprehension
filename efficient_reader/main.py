@@ -1,10 +1,10 @@
 import os
+import sys
 import argparse
 import numpy as np
 import tensorflow as tf
-from models import DeepLSTM
-from utils import pp
-from datasets import CBTDataSet
+import models
+from datasets import CBTDataSet, Sampler
 
 
 parser = argparse.ArgumentParser(description='How to run this')
@@ -15,22 +15,10 @@ parser.add_argument(
     help="Epochs to train [3]"
 )
 parser.add_argument(
-    "-vocab_size",
-    type=int,
-    default=10000,
-    help="The size of vocabulary [10000]"
-)
-parser.add_argument(
     "-learning_rate",
     type=float,
     default=5e-5,
     help="Learning rate [0.00005]"
-)
-parser.add_argument(
-    "-model",
-    type=str,
-    default="LSTM",
-    help="The type of model to train and test [LSTM]"
 )
 parser.add_argument(
     "-data_dir",
@@ -56,31 +44,42 @@ parser.add_argument(
     default=False,
     help="True for forward only, False for training [False]"
 )
+parser.add_argument(
+    "-sample",
+    type=str,
+    default="full_train",
+    help="Dataset sample to use"
+)
+parser.add_argument(
+    "-model",
+    type=str,
+    default="full_train",
+    help="Model to use as previously saved"
+)
 args = parser.parse_args()
 
-model_dict = {
-    'LSTM': DeepLSTM,
-}
+def main():
+    cbt_dataset = CBTDataSet(data_dir="data")
+    sampler_dict = {
+        "train": [
+            Sampler("full_train", lambda x: True),
+            Sampler("word_distance_pass", models.word_distance),
+            Sampler("word_distance_fail", lambda x: not models.word_distance(x)),
+            Sampler("frequency_pass", models.frequency),
+            Sampler("frequency_fail", lambda x: not models.frequency(x))
+        ],
+        "valid": [
+            Sampler("full_valid", lambda x: True)
+        ],
+        "test": [
+            Sampler("full_test", lambda x: True)
+        ]
+    }
+    cbt_dataset.named_entities(sampler_dict)
 
-def main(_):
-    tf.logging.set_verbosity(tf.logging.ERROR)
-    data_set = CBTDataSet("data", name="cbt_data")
-    data_set.auto_setup()
-    print(data_set.data_dir)
-    if not os.path.exists(args.checkpoints):
-        print(" [*] Creating checkpoint directory...")
-        os.makedirs(args.checkpoint_dir)
+    print("running model {}".format(args.sample))
+    models.ASReader().run(args.sample, args.model, args.forward_only)
 
-    with tf.device('/cpu:0'), tf.Session() as sess:
-        model = model_dict[args.model](batch_size=32,
-        checkpoint_dir=args.checkpoints, forward_only=args.forward_only)
-
-        if not args.forward_only:
-            model.train(sess, args.vocab_size, args.epoch,
-            args.learning_rate, .9, .95,
-            args.data_dir, data_set.data_dir)
-        else:
-            model.load(sess, args.checkpoints, args.dataset)
 
 if __name__ == '__main__':
-    tf.app.run(main)
+    main()

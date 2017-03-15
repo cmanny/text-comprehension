@@ -1,209 +1,248 @@
 import os
-from glob import glob
+import pickle
 import time
+import random
 import numpy as np
 import tensorflow as tf
+from collections import Counter
+from tensorflow.python.ops import sparse_ops
+from network_util import softmax, orthogonal_initializer
+from tensorflow.contrib.tensorboard.plugins import projector
 
-from cells import LSTMCell, MultiRNNCellWithSkipConn
-from utils import load_vocab, load_dataset, array_pad
-
-class BaseModel(object):
-    def __init__(self):
-        self.vocab = None
-        self.data = None
-
-    def save(self, sess, checkpoint_dir, dataset_name, global_step=None):
-        self.saver = tf.train.Saver()
-
-        print(" [*] Saving checkpoints...")
-        model_name = type(self).__name__ or "Reader"
-        if self.batch_size:
-            model_dir = "%s_%s_%s" % (model_name, dataset_name, self.batch_size)
-        else:
-            model_dir = dataset_name
-
-        checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
-        if not os.path.exists(checkpoint_dir):
-            os.makedirs(checkpoint_dir)
-        self.saver.save(sess,
-                os.path.join(checkpoint_dir, model_name), global_step=global_step)
-
-    def load(self, sess, checkpoint_dir, dataset_name):
-        model_name = type(self).__name__ or "Reader"
-        self.saver = tf.train.Saver()
-
-        print(" [*] Loading checkpoints...")
-        if self.batch_size:
-            model_dir = "%s_%s_%s" % (model_name, dataset_name, self.batch_size)
-        else:
-            model_dir = dataset_name
-        checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
-
-        ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-        if ckpt and ckpt.model_checkpoint_path:
-            ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-            self.saver.restore(sess, os.path.join(checkpoint_dir, ckpt_name))
-            return True
-        else:
-            return False
-
-class DeepLSTM(BaseModel):
-    """Deep LSTM model."""
-    def __init__(self, size=256, depth=3, batch_size=32,
-                             keep_prob=0.1, max_nsteps=1000,
-                             checkpoint_dir="checkpoint", forward_only=False):
-        super(DeepLSTM, self).__init__()
-
-        self.size = int(size)
-        self.depth = int(depth)
-        self.batch_size = int(batch_size)
-        self.output_size = self.depth * self.size
-        self.keep_prob = float(keep_prob)
-        self.max_nsteps = int(max_nsteps)
-        self.checkpoint_dir = checkpoint_dir
-
-        start = time.clock()
-        print(" [*] Building Deep LSTM...")
-        self.cell = LSTMCell(size, forget_bias=0.0)
-        # if not forward_only and self.keep_prob < 1:
-        #     self.cell = tf.contrib.rnn.DropoutWrapper(self.cell, output_keep_prob=keep_prob)
-        self.stacked_cell = MultiRNNCellWithSkipConn([self.cell] * depth)
-
-        self.initial_state = self.stacked_cell.zero_state(batch_size, tf.float32)
-
-    def prepare_model(self, data_dir, dataset_name, vocab_size):
-        if not self.vocab:
-            self.vocab, self.rev_vocab = load_vocab(data_dir, dataset_name, vocab_size)
-            print(" [*] Loading vocab finished.")
-
-        self.vocab_size = len(self.vocab)
-
-        self.emb = tf.get_variable("emb", [self.vocab_size, self.size])
-
-        # inputs
-        self.inputs = tf.placeholder(tf.int32, [self.batch_size, self.max_nsteps])
-        embed_inputs = tf.nn.embedding_lookup(self.emb, tf.transpose(self.inputs))
-
-        tf.histogram_summary("embed", self.emb)
-
-        # output states
-        _, states = tf.nn.dynamic_rnn(self.stacked_cell,
-                                      tf.unpack(embed_inputs),
-                                      dtype=tf.float32,
-                                      initial_state=self.initial_state)
-        self.batch_states = tf.pack(states)
-
-        self.nstarts = tf.placeholder(tf.int32, [self.batch_size, 3])
-        outputs = tf.pack([tf.slice(self.batch_states, nstarts, [1, 1, self.output_size])
-                for idx, nstarts in enumerate(tf.unpack(self.nstarts))])
-
-        self.outputs = tf.reshape(outputs, [self.batch_size, self.output_size])
-
-        self.W = tf.get_variable("W", [self.vocab_size, self.output_size])
-        tf.histogram_summary("weights", self.W)
-        tf.histogram_summary("output", outputs)
-
-        self.y = tf.placeholder(tf.float32, [self.batch_size, self.vocab_size])
-        self.y_ = tf.matmul(self.outputs, self.W, transpose_b=True)
-
-        self.loss = tf.nn.softmax_cross_entropy_with_logits(self.y_, self.y)
-        tf.scalar_summary("loss", tf.reduce_mean(self.loss))
-
-        correct_prediction = tf.equal(tf.argmax(self.y, 1), tf.argmax(self.y_, 1))
-        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-        tf.scalar_summary("accuracy", self.accuracy)
-
-        print(" [*] Preparing model finished.")
-
-    def train(self, sess, vocab_size, epoch=25, learning_rate=0.0002,
-                        momentum=0.9, decay=0.95, data_dir="data", dataset_name="cbt"):
-        self.prepare_model(data_dir, dataset_name, vocab_size)
-
-        start = time.clock()
-        print(" [*] Calculating gradient and loss...")
-        self.optim = tf.train.AdamOptimizer(learning_rate, 0.9).minimize(self.loss)
-        print(" [*] Gradient and loss finished after %.2fs" % (time.clock() - start))
-
-        sess.run(tf.initialize_all_variables())
-
-        if self.load(sess, self.checkpoint_dir, dataset_name):
-            print(" [*] Deep LSTM checkpoint is loaded.")
-        else:
-            print(" [*] There is no checkpoint for this model.")
-
-        y = np.zeros([self.batch_size, self.vocab_size])
-
-        merged = tf.merge_all_summaries()
-        writer = tf.train.SummaryWriter("/tmp/deep", sess.graph_def)
-
-        counter = 0
-        start_time = time.time()
-        for epoch_idx in xrange(epoch):
-            data_loader = load_dataset(data_dir, dataset_name, vocab_size)
-
-            batch_stop = False
-            while True:
-                y.fill(0)
-                inputs, nstarts, answers = [], [], []
-                batch_idx = 0
-                while True:
-                    try:
-                        (_, document, question, answer, _), data_idx, data_max_idx = data_loader.next()
-                    except StopIteration:
-                        batch_stop = True
-                        break
-
-                    # [0] means splitter between d and q
-                    data = [int(d) for d in document.split()] + [0] + \
-                            [int(q) for q in question.split() for q in question.split()]
-
-                    if len(data) > self.max_nsteps:
-                        continue
-
-                    inputs.append(data)
-                    nstarts.append(len(inputs[-1]) - 1)
-                    y[batch_idx][int(answer)] = 1
-
-                    batch_idx += 1
-                    if batch_idx == self.batch_size: break
-                if batch_stop: break
-
-                FORCE=False
-                if FORCE:
-                    inputs = array_pad(inputs, self.max_nsteps, pad=-1, force=FORCE)
-                    nstarts = np.where(inputs==-1)[1]
-                    inputs[inputs==-1]=0
+def word_distance(example):
+    i_context, i_query, i_answer, i_candidates = example.index_list()
+    i_missing = example.vocab["XXXXX"]
+    missing_index = i_query.index(i_missing)
+    positions = {word: [] for word in i_context}
+    for i, word in enumerate(i_context):
+        positions[word].append(i)
+    penalties = [0 for _ in i_candidates]
+    for i, candidate in enumerate(i_candidates):
+        for position in positions[candidate]:
+            for j, word in enumerate(i_query):
+                context_index = position + j - missing_index
+                if word in positions:
+                    distances = [abs(context_index - x) for x in positions[word]]
                 else:
-                    inputs = array_pad(inputs, self.max_nsteps, pad=0)
-                nstarts = [[nstart, idx, 0] for idx, nstart in enumerate(nstarts)]
+                    distances = [5]
+                penalty = min(5, *distances)
+                penalties[i] += penalty
+    predicted = i_candidates[penalties.index(min(penalties))]
+    return predicted == i_answer[0]
 
-                _, summary_str, cost, accuracy = sess.run(
-                    [self.optim, merged, self.loss, self.accuracy],
-                    feed_dict={
-                        self.inputs: inputs,
-                        self.nstarts: nstarts,
-                        self.y: y
-                    }
-                )
-                if counter % 10 == 0:
-                    writer.add_summary(summary_str, counter)
-                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, loss: %.8f, accuracy: %.8f" \
-                            % (epoch_idx, data_idx, data_max_idx, time.time() - start_time, np.mean(cost), accuracy))
-                counter += 1
-            self.save(sess, self.checkpoint_dir, dataset_name)
+def frequency(example):
+    i_context, i_query, i_answer, i_candidates = example.index_list()
+    counter = Counter()
+    for word in i_context:
+        counter[word] += 1
+    predicted = max(i_candidates, key=(lambda word: counter[word]))
+    return predicted == i_answer[0]
 
-    def test(self, voab_size):
-        self.prepare_model(data_dir, dataset_name, vocab_size)
+class ASReader(object):
+    def __init__(self):
+        self.dropout_keep_prob = 0.9
+        self.hidden_size = 384
+        self.embedding_size = 384
+        self.vocab_size = 62255
+        self.batch_size = 32
+        self.epochs = 2
+        self.l2_reg_lambda = 0.0001
 
-class TextUnderstanding(object):
-        def __init__(self, *args, **kwargs):
-                pass
+    def _cg_read(self, set_name):
+        set_queue = tf.train.string_input_producer(['tfrecords/' + set_name + '.tfrecords'], num_epochs=self.epochs)
+        queue = tf.QueueBase.from_list(0, [set_queue])
+        reader = tf.TFRecordReader()
+        _, serialized_example = reader.read(queue)
+        features = tf.parse_single_example(
+            serialized_example,
+            features={
+                'context': tf.VarLenFeature(tf.int64),
+                'query': tf.VarLenFeature(tf.int64),
+                'answer': tf.FixedLenFeature([], tf.int64)
+        })
+        context = sparse_ops.serialize_sparse(features['context'])
+        query = sparse_ops.serialize_sparse(features['query'])
+        answer = features['answer']
 
-        def train():
-                pass
+        context_bs, query_bs, answer_bs = tf.train.shuffle_batch(
+            [context, query, answer], batch_size=self.batch_size,
+            capacity=2000,
+            min_after_dequeue=1000
+        )
 
-        def valid():
-                pass
+        sparse_context_batch = sparse_ops.deserialize_many_sparse(context_bs, dtype=tf.int64)
+        sparse_query_batch = sparse_ops.deserialize_many_sparse(query_bs, dtype=tf.int64)
 
-        def test():
-                pass
+        self.context_batch = tf.sparse_tensor_to_dense(sparse_context_batch)
+        self.context_weights = tf.sparse_to_dense(sparse_context_batch.indices, sparse_context_batch.dense_shape, 1)
+
+        self.query_batch = tf.sparse_tensor_to_dense(sparse_query_batch)
+        self.query_weights = tf.sparse_to_dense(sparse_query_batch.indices, sparse_query_batch.dense_shape, 1)
+
+        self.answer_batch = answer_bs
+
+    def _cg_inference(self):
+
+        # the embedding may already exist so we use tf.get_variable to find it if
+        # it already exists, initialize to random uniform values if created
+        embedding = tf.get_variable('embedding',
+            [self.vocab_size, self.embedding_size],
+            initializer=tf.random_uniform_initializer(minval=-0.05, maxval=0.05)
+        )
+
+        # using regularizer to reduce overfitting
+        self.regularizer = tf.nn.l2_loss(embedding)
+
+        # look up embeddings for document, and use dropout
+        context_emb = tf.nn.dropout(tf.nn.embedding_lookup(embedding, self.context_batch), self.dropout_keep_prob)
+        context_emb.set_shape([None, None, self.embedding_size])
+
+        # look up embeddings for query, and use dropout
+        query_emb = tf.nn.dropout(tf.nn.embedding_lookup(embedding, self.query_batch), self.dropout_keep_prob)
+        query_emb.set_shape([None, None, self.embedding_size])
+
+        with tf.variable_scope('context', initializer=orthogonal_initializer()):
+            # we need to specify the query length as an rnn argument
+            context_len = tf.reduce_sum(self.context_weights, axis=1)
+
+            # one may either use output_states, the first return value, or
+            # final_state, the second return value. The first return value gives
+            # all of the outputs after every input, while the second return value
+            # gives only the final output aftre every input has been passed through
+            output_states, _ = tf.nn.bidirectional_dynamic_rnn(
+                tf.contrib.rnn.GRUCell(self.hidden_size),
+                tf.contrib.rnn.GRUCell(self.hidden_size),
+                context_emb,
+                sequence_length=tf.to_int64(context_len),
+                dtype=tf.float32
+            )
+
+            # concatenate forward and backward cells into one tensor
+            h_context = tf.concat(axis=2, values=output_states)
+
+        with tf.variable_scope('query', initializer=orthogonal_initializer()):
+            # we need to specify the query length as an rnn argument
+            query_len = tf.reduce_sum(self.query_weights, axis=1)
+            output_states, _ = tf.nn.bidirectional_dynamic_rnn(
+                tf.contrib.rnn.GRUCell(self.hidden_size),
+                tf.contrib.rnn.GRUCell(self.hidden_size),
+                query_emb,
+                sequence_length=tf.to_int64(query_len),
+                dtype=tf.float32
+            )
+
+            # concatenate forward and backward cells into one tensor
+            h_query = tf.concat(axis=2, values=output_states)
+
+        with tf.name_scope("attention"):
+            # Matrix of all query and context states
+            M = tf.matmul(h_context, h_query, adjoint_b=True)
+            M_mask = tf.to_float(tf.matmul(tf.expand_dims(self.context_weights, -1), tf.expand_dims(self.query_weights, 1)))
+
+            alpha = softmax(M, 1, M_mask)
+            beta = softmax(M, 2, M_mask)
+            query_importance = tf.expand_dims(tf.reduce_sum(beta, 1) / tf.to_float(tf.expand_dims(context_len, -1)), -1)
+            s = tf.squeeze(tf.matmul(alpha, query_importance), [2])
+            unpacked_s = zip(tf.unstack(s, self.batch_size), tf.unstack(self.context_batch, self.batch_size))
+
+            # create the vocabulary x batch sized list votes for words
+        self.y_hat = tf.stack([tf.unsorted_segment_sum(attentions, sentence_ids, self.vocab_size) for (attentions, sentence_ids) in unpacked_s])
+
+    def _cg_train(self):
+
+        with tf.name_scope("loss"):
+            index = tf.range(0, self.batch_size) * self.vocab_size + tf.to_int32(self.answer_batch)
+            flat = tf.reshape(self.y_hat, [-1])
+            relevant = tf.gather(flat, index)
+            relevant = tf.check_numerics(relevant, "relevant")
+
+            log = tf.check_numerics(tf.log(relevant + 1e-10), "log")
+
+            loss = -tf.reduce_mean(log) + self.l2_reg_lambda * self.regularizer
+            self.loss = tf.check_numerics(loss, "loss")
+
+        self.global_step = tf.Variable(0, name="global_step", trainable=False)
+
+        self.accuracy = tf.reduce_mean(tf.to_float(tf.equal(tf.argmax(self.y_hat, 1), self.answer_batch)))
+
+        with tf.name_scope("optimizer"):
+            optimizer = tf.train.AdamOptimizer()
+            grads_and_vars = optimizer.compute_gradients(loss)
+
+            # use clipping on gradients to prevent explosion or implosion
+            capped_grads_and_vars = [(tf.clip_by_value(grad, -5, 5), var) for (grad, var) in grads_and_vars]
+            self.train_op = optimizer.apply_gradients(capped_grads_and_vars, global_step=self.global_step)
+
+        tf.summary.scalar('loss', self.loss)
+        tf.summary.scalar('accuracy', self.accuracy)
+
+    def run(self, sample_name, model_name, forward_only):
+        model_path = 'models/' + model_name
+        if not os.path.exists(model_path):
+            os.makedirs(model_path)
+
+        # Build computation graph, first read samples, then infer, then optimize
+        self._cg_read("full_test" if forward_only else sample_name)
+        self._cg_inference()
+        self._cg_train()
+
+        # Display histograms of all trainable variables
+        for var in tf.trainable_variables():
+            tf.summary.histogram(var.name, var)
+        summary_op = tf.summary.merge_all()
+
+        with tf.Session() as sess:
+            # Set up embedding visualiser
+            summary_writer = tf.summary.FileWriter(model_path, sess.graph)
+            config = projector.ProjectorConfig()
+            embedding = config.embeddings.add()
+            embedding.tensor_name = "embedding"
+            embedding.metadata_path = 'cache/embedding.meta'
+            projector.visualize_embeddings(summary_writer, config)
+
+            saver_variables = tf.global_variables()
+            saver = tf.train.Saver(saver_variables, max_to_keep=100)
+
+            # Need to run session once first to set up
+            sess.run([
+                tf.global_variables_initializer(),
+                tf.local_variables_initializer()]
+            )
+
+            # get latest checkpoint if exists
+            # can select an arbitrary name with saver.restore(sess, name)
+            model = tf.train.latest_checkpoint(model_path)
+            if model:
+              saver.restore(sess, model)
+
+            coord = tf.train.Coordinator()
+            threads = tf.train.start_queue_runners(coord=coord)
+
+            start_time = time.time()
+            accumulated_accuracy = 0
+
+            # The
+            try:
+                if not forward_only:
+                    while not coord.should_stop():
+
+                        loss_t, _, step, acc = sess.run(
+                          [self.loss, self.train_op, self.global_step, self.accuracy]
+                        )
+                        elapsed_time, start_time = time.time() - start_time, time.time()
+                        print(step, acc, loss_t, elapsed_time)
+
+                        if step % 10 == 0:
+                            summary_str = sess.run(summary_op)
+                            summary_writer.add_summary(summary_str, step)
+                        if step % 100 == 0:
+                            saver.save(sess, model_path + "/run", global_step=step)
+                else:
+                    while not coord.should_stop():
+                        acc = sess.run(self.accuracy)
+                        print(acc)
+            except tf.errors.OutOfRangeError:
+                print('Done!')
+            finally:
+                coord.request_stop()
+            coord.join(threads)
