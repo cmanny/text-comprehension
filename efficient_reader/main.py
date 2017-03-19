@@ -14,12 +14,13 @@ parser.add_argument(
     default=3,
     help="Epochs to train [3]"
 )
-parser.add_argument(
-    "-vocab_size",
-    type=int,
-    default=10000,
-    help="The size of vocabulary [10000]"
-)
+# parser.add_argument(
+#     "-vocab_size",
+#     type=int,
+#     default=10000,
+#     help="The size of vocabulary [10000]"
+# )
+# Will be handled by the reader component
 parser.add_argument(
     "-learning_rate",
     type=float,
