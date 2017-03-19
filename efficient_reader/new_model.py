@@ -77,24 +77,24 @@ def inference(documents, doc_mask, query, query_mask):
     fwd_cell = tf.nn.rnn_cell.GRUCell(FLAGS.hidden_size)
     back_cell = tf.nn.rnn_cell.GRUCell(FLAGS.hidden_size)
 
-    doc_len = tf.reduce_sum(doc_mask, reduction_indices=1)
+    doc_len = tf.reduce_sum(doc_mask, axis=1)
     h, _ = tf.nn.bidirectional_dynamic_rnn(
         fwd_cell, back_cell, doc_emb, sequence_length=tf.to_int64(doc_len), dtype=tf.float32)
     #h_doc = tf.nn.dropout(tf.concat(2, h), FLAGS.dropout_keep_prob)
-    h_doc = tf.concat(2, h)
+    h_doc = tf.concat(axis=2, values=h)
 
   with tf.variable_scope('query', initializer=orthogonal_initializer()):
     fwd_cell = tf.nn.rnn_cell.GRUCell(FLAGS.hidden_size)
     back_cell = tf.nn.rnn_cell.GRUCell(FLAGS.hidden_size)
 
-    query_len = tf.reduce_sum(query_mask, reduction_indices=1)
+    query_len = tf.reduce_sum(query_mask, axis=1)
     h, _ = tf.nn.bidirectional_dynamic_rnn(
         fwd_cell, back_cell, query_emb, sequence_length=tf.to_int64(query_len), dtype=tf.float32)
     #h_query = tf.nn.dropout(tf.concat(2, h), FLAGS.dropout_keep_prob)
-    h_query = tf.concat(2, h)
+    h_query = tf.concat(axis=2, values=h)
 
-  M = tf.batch_matmul(h_doc, h_query, adj_y=True)
-  M_mask = tf.to_float(tf.batch_matmul(tf.expand_dims(doc_mask, -1), tf.expand_dims(query_mask, 1)))
+  M = tf.matmul(h_doc, h_query, adj_y=True)
+  M_mask = tf.to_float(tf.matmul(tf.expand_dims(doc_mask, -1), tf.expand_dims(query_mask, 1)))
 
   alpha = softmax(M, 1, M_mask)
   beta = softmax(M, 2, M_mask)
@@ -102,10 +102,10 @@ def inference(documents, doc_mask, query, query_mask):
   #query_importance = tf.expand_dims(tf.reduce_mean(beta, reduction_indices=1), -1)
   query_importance = tf.expand_dims(tf.reduce_sum(beta, 1) / tf.to_float(tf.expand_dims(doc_len, -1)), -1)
 
-  s = tf.squeeze(tf.batch_matmul(alpha, query_importance), [2])
+  s = tf.squeeze(tf.matmul(alpha, query_importance), [2])
 
-  unpacked_s = zip(tf.unpack(s, FLAGS.batch_size), tf.unpack(documents, FLAGS.batch_size))
-  y_hat = tf.pack([tf.unsorted_segment_sum(attentions, sentence_ids, FLAGS.vocab_size) for (attentions, sentence_ids) in unpacked_s])
+  unpacked_s = zip(tf.unstack(s, FLAGS.batch_size), tf.unstack(documents, FLAGS.batch_size))
+  y_hat = tf.stack([tf.unsorted_segment_sum(attentions, sentence_ids, FLAGS.vocab_size) for (attentions, sentence_ids) in unpacked_s])
 
   return y_hat, regularizer
 
@@ -130,8 +130,8 @@ def train(y_hat, regularizer, document, doc_weight, answer):
   capped_grads_and_vars = [(tf.clip_by_value(grad, -5, 5), var) for (grad, var) in grads_and_vars]
   train_op = optimizer.apply_gradients(capped_grads_and_vars, global_step=global_step)
 
-  tf.scalar_summary('loss', loss)
-  tf.scalar_summary('accuracy', accuracy)
+  tf.summary.scalar('loss', loss)
+  tf.summary.scalar('accuracy', accuracy)
   return loss, train_op, global_step, accuracy
 
 def main():
@@ -140,11 +140,11 @@ def main():
 
   y_hat, reg = inference(document_batch, document_weights, query_batch, query_weights)
   loss, train_op, global_step, accuracy = train(y_hat, reg, document_batch, document_weights, answer_batch)
-  summary_op = tf.merge_all_summaries()
+  summary_op = tf.summary.merge_all()
 
   with tf.Session() as sess:
-    summary_writer = tf.train.SummaryWriter(model_path, sess.graph)
-    saver_variables = tf.all_variables()
+    summary_writer = tf.summary.FileWriter(model_path, sess.graph)
+    saver_variables = tf.global_variables()
     if not FLAGS.training:
       saver_variables = filter(lambda var: var.name != 'input_producer/limit_epochs/epochs:0', saver_variables)
       saver_variables = filter(lambda var: var.name != 'smooth_acc:0', saver_variables)
@@ -152,8 +152,8 @@ def main():
     saver = tf.train.Saver(saver_variables)
 
     sess.run([
-        tf.initialize_all_variables(),
-        tf.initialize_local_variables()])
+        tf.global_variables_initializer(),
+        tf.local_variables_initializer()])
     model = tf.train.latest_checkpoint(model_path)
     if model:
       print('Restoring ' + model)
