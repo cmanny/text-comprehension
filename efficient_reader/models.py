@@ -194,16 +194,3 @@ class DeepLSTM(BaseModel):
 
     def test(self, voab_size):
         self.prepare_model(data_dir, dataset_name, vocab_size)
-
-class TextUnderstanding(object):
-        def __init__(self, *args, **kwargs):
-                pass
-
-        def train():
-                pass
-
-        def valid():
-                pass
-
-        def test():
-                pass
