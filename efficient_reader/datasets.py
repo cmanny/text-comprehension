@@ -8,15 +8,12 @@ import tensorflow as tf
 
 
 class CBTDataSet(object):
-    def __init__(self, data_dir, in_memory=False, name="dts", *args, **kwargs):
+    def __init__(self, data_dir="raw_data", in_memory=False, name="cbt_data",
+                 *args, **kwargs):
         self.in_memory = in_memory
         self.top_data_dir = data_dir
         self.name = name
-
-    # Function to automatically handle data
-    def auto_setup(self):
         self.from_url("http://www.thespermwhale.com/jaseweston/babi/CBTest.tgz")
-        self.get_ne_data()
 
     def from_url(self, url):
         self.inner_data = os.path.join(self.top_data_dir, self.name)

@@ -64,6 +64,7 @@ model_dict = {
 }
 
 def main():
+    cbt_dataset = CBTDataSet()
     pass
     # rewrite
     # tf.logging.set_verbosity(tf.logging.ERROR)
@@ -80,8 +81,8 @@ def main():
     #
     #     if not args.forward_only:
     #         model.train(sess, args.vocab_size, args.epoch,
-    #         args.learning_rate, .9, .95,
-    #         args.data_dir, data_set.data_dir)
+    #                     args.learning_rate, .9, .95,
+    #                     args.data_dir, data_set.data_dir)
     #     else:
     #         model.load(sess, args.checkpoints, args.dataset)
 
