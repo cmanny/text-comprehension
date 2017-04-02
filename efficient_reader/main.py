@@ -64,7 +64,7 @@ model_dict = {
 }
 
 def main():
-    cbt_dataset = CBTDataSet()
+    cbt_dataset = CBTDataSet(data_dir="raw_data")
     pass
     # rewrite
     # tf.logging.set_verbosity(tf.logging.ERROR)

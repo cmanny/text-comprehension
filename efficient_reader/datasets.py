@@ -8,6 +8,12 @@ import tensorflow as tf
 
 
 class CBTDataSet(object):
+    _NAMED_ENTITY = {
+        "train": "cbtest_NE_train.txt",
+        "valid": "cbtest_NE_valid_2000ex.txt",
+        "test": "cbtest_NE_test_2500ex.txt"
+    }
+
     def __init__(self, data_dir="raw_data", in_memory=False, name="cbt_data",
                  *args, **kwargs):
         self.in_memory = in_memory
@@ -37,19 +43,8 @@ class CBTDataSet(object):
             trf.extractall(directory)
 
     @property
-    def raw_data_dir(self):
+    def inner_data_dir(self):
         return os.path.join(self.inner_data, "CBTest", "data")
-
-    # # I really shoudn't do this
-    # def get_ne_data(self):
-    #     with open(os.path.join(self.raw_data_dir, "cbtest_NE_test_2500ex.txt")) as test:
-    #         self.test = test.readlines()
-    #
-    #     with open(os.path.join(self.raw_data_dir, "cbtest_NE_train.txt")) as train:
-    #         self.train = train.readlines()
-    #
-    #     with open(os.path.join(self.raw_data_dir, "cbtest_NE_valid_2000ex.txt")) as valid:
-    #         self.valid = valid.readlines()
 
     @classmethod
     def clean(self, string):
@@ -69,7 +64,8 @@ class CBTDataSet(object):
                 return pickle.load(f)
 
         directories = ['data/train/', 'data/valid/', 'data/test/']
-        files = [directory + file_name for directory in directories for file_name in os.listdir(directory)]
+        files = [directory + file_name for directory in directories \
+                 for file_name in os.listdir(directory)]
         counter = Counter()
         for file_name in files:
             with open(file_name, 'r') as f:
