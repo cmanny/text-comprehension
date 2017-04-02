@@ -6,6 +6,18 @@ import re
 from collections import Counter
 import tensorflow as tf
 
+class CBTExample(object):
+    def __init__(self, context, query, answer):
+        self.context = context
+        self.query = query
+        self.answer = answer
+
+    def index_list(self, vocab_index):
+        self.i_context = [vocab_index[token] for token in self.context]
+        self.i_query = [vocab_index[token] for token in self.query]
+        self.i_answer = [vocab_index[token] for token in self.answer]
+        return (self.i_context, self.i_query, self.i_answer)
+
 
 class CBTDataSet(object):
     _NAMED_ENTITY = {
