@@ -58,21 +58,9 @@ class CBTDataSet(object):
     def inner_data_dir(self):
         return os.path.join(self.inner_data, "CBTest", "data")
 
-    @classmethod
-    def clean(self, string):
-        return [re.sub("[\n0-9]", '', x) for x in string.split(" ")]
-
-    def get_cqa_words(self, cqa):
-        cqa_split = cqa.split("\n21 ")
-        context = clean(cqa_split[0])
-        last_line = cqa_split[1]
-        query, answer = [clean(x) for x in last_line.split("\t", 2)[:2]]
-        return context, query, answer
-
-    def counts(self):
-        cache = 'counter.pickle'
-        if os.path.exists(cache):
-            with open(cache, 'r') as f:
+    def _vocab(self, vocab_file):
+        if os.path.exists(vocab_file):
+            with open(vocab_file, 'r') as f:
                 return pickle.load(f)
 
         directories = ['data/train/', 'data/valid/', 'data/test/']
@@ -88,9 +76,21 @@ class CBTDataSet(object):
                         context, query, answer = get_cqa_words(cqa)
                         for token in context + query + answer:
                             counter[token] += 1
-        with open(cache, 'w') as f:
+        with open(vocab_file, 'w') as f:
             pickle.dump(counter, f)
         return counter
+
+    @classmethod
+    def clean(self, string):
+        return [re.sub("[\n0-9]", '', x) for x in string.split(" ")]
+
+    def get_cqa_words(self, cqa):
+        cqa_split = cqa.split("\n21 ")
+        context = clean(cqa_split[0])
+        last_line = cqa_split[1]
+        query, answer = [clean(x) for x in last_line.split("\t", 2)[:2]]
+        return context, query, answer
+
 
     def tokenize(self, index, word):
         directories = ['data/train/', 'data/valid/', 'data/test/']
