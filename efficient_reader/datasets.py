@@ -105,7 +105,8 @@ class CBTDataSet(object):
             self.obj["vocab"] = {token: i for i, token in enumerate(words)}
     return self.obj
 
-    def generate_tfrecord(self, name, examples, criterion=None, force=False):
+    def generate_tfrecord(self, name, examples, criterion=lambda x: True,
+                          force=False):
         out_name = os.path.join("tfrecords", name + ".tfrecords")
         if os.path.exists(out_name) and not force:
             return out_name
