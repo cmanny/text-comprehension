@@ -58,87 +58,74 @@ class CBTDataSet(object):
     def inner_data_dir(self):
         return os.path.join(self.inner_data, "CBTest", "data")
 
-    # def _vocab(self, vocab_file):
-    #     if os.path.exists(vocab_file):
-    #         with open(vocab_file, 'r') as f:
-    #             return pickle.load(f)
-    #
-    #     directories = ['data/train/', 'data/valid/', 'data/test/']
-    #     files = [directory + file_name for directory in directories \
-    #              for file_name in os.listdir(directory)]
-    #     counter = Counter()
-    #     for file_name in files:
-    #         with open(file_name, 'r') as f:
-    #             file_string = f.read()
-    #             for cqa in file_string.split("\n\n"):
-    #                     if len(cqa) < 5:
-    #                         break
-    #                     context, query, answer = get_cqa_words(cqa)
-    #                     for token in context + query + answer:
-    #                         counter[token] += 1
-    #     with open(vocab_file, 'w') as f:
-    #         pickle.dump(counter, f)
-    #     return counter
-
     @classmethod
     def clean(self, string):
         return [re.sub("[\n0-9]", '', x) for x in string.split(" ")]
 
     def get_cqa_words(self, cqa):
         cqa_split = cqa.split("\n21 ")
-        context = clean(cqa_split[0])
+        context = self.clean(cqa_split[0])
         last_line = cqa_split[1]
-        query, answer = [clean(x) for x in last_line.split("\t", 2)[:2]]
+        query, answer = [self.clean(x) for x in last_line.split("\t", 2)[:2]]
         return context, query, answer
 
-    def named_entities(self, record_folder, perc=1.0, sort_asc=1):
-        directories = [os.path.join(record_folder, f) \
-                       for f in self._NAMED_ENTITY.values()]
-        if os.path.exists("ne_vocab"):
-            with open("ne_vocab", 'r') as f:
-                self.ne_vocab = pickle.load(f)
+    def named_entities(self, new_cache=False, cache_folder="cache",
+                       perc=1.0, sort_asc=1):
+        if not os.path.exists(cache_folder):
+            os.mkdir(cache_folder)
+        cache_file_name = os.path.join(cache_folder, "ne_cache.pickle")
+        if os.path.exists(cache_file_name):
+            with open(cache_file_name, 'r') as f:
+                self.obj = pickle.load(f)
         else:
-            self.ne_vocab = None
-        self.tokenize(self.index, self.word)
+            #If we don't already have this, create it
+            self.obj = {
+                "train": [],
+                "valid": [],
+                "test": []
+                "vocab": dict()
+            }
+            self.counter = Counter()
 
-
-
-
-    def tokenize(self, index, word):
-        directories = ['data/train/', 'data/valid/', 'data/test/']
-        for directory in directories:
-            out_name = directory.split('/')[-2] + '.tfrecords'
-            writer = tf.python_io.TFRecordWriter(out_name)
-            files = map(lambda file_name: directory + file_name, os.listdir(directory))
-            for file_name in files:
-                with open(file_name, 'r') as f:
+            for s, f_name in self._NAMED_ENTITY:
+                full_path = os.path.join(self.inner_data_dir, f_name)
+                with open(f_name, 'r') as f:
                     file_string = f.read()
                     for cqa in file_string.split("\n\n"):
                         if len(cqa) < 5:
                             break
-                        context, query, answer = get_cqa_words(cqa)
-                        context = [index[token] for token in context]
-                        query = [index[token] for token in query]
-                        answer = [index[token] for token in answer]
-                        example = tf.train.Example(
-                             features = tf.train.Features(
-                                 feature = {
-                                     'document': tf.train.Feature(
-                                         int64_list=tf.train.Int64List(value=context)),
-                                     'query': tf.train.Feature(
-                                         int64_list=tf.train.Int64List(value=query)),
-                                     'answer': tf.train.Feature(
-                                         int64_list=tf.train.Int64List(value=answer))
-                                     }
-                              )
+                        context, query, answer = self.get_cqa_words(cqa)
+                        self.obj[s].append(
+                            CBTExample(context, query, answer)
                         )
-                        serialized = example.SerializeToString()
-                        writer.write(serialized)
+                        for token in context + query + answer:
+                            self.counter[token] += 1
+            # Get all words in counter, and create word-id mapping
+            words, _ = zip(*counter.most_common())
+            self.obj["vocab"] = {token: i for i, token in enumerate(words)}
+    return self.obj
 
-    def run(self):
-        counter = counts()
-        print('num words',len(counter))
-        word, _ = zip(*counter.most_common())
-        index = {token: i for i, token in enumerate(word)}
-        tokenize(index, word)
-        print('DONE')
+    def generate_tfrecord(self, name, examples, criterion=None, force=False):
+        out_name = os.path.join("tfrecords", name + ".tfrecords")
+        if os.path.exists(out_name) and not force:
+            return out_name
+        writer = tf.python_io.TFRecordWriter(out_name)
+        for cbt_example in examples:
+            if not criterion(cbt_example):
+                continue
+            ic, iq, ia = cbt_example.index_list(self.obj["vocab"])
+            example = tf.train.Example(
+                 features = tf.train.Features(
+                     feature = {
+                         'document': tf.train.Feature(
+                             int64_list=tf.train.Int64List(value=ic)),
+                         'query': tf.train.Feature(
+                             int64_list=tf.train.Int64List(value=iq)),
+                         'answer': tf.train.Feature(
+                             int64_list=tf.train.Int64List(value=ia))
+                         }
+                  )
+            )
+            serialized = example.SerializeToString()
+            writer.write(serialized)
+        return out_name
