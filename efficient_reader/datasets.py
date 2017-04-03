@@ -69,8 +69,7 @@ class CBTDataSet(object):
         query, answer = [self.clean(x) for x in last_line.split("\t", 2)[:2]]
         return context, query, answer
 
-    def named_entities(self, new_cache=False, cache_folder="cache",
-                       perc=1.0, sort_asc=1):
+    def named_entities(self, cache_folder="cache", perc=1.0, sort_asc=1):
         if not os.path.exists(cache_folder):
             os.mkdir(cache_folder)
         cache_file_name = os.path.join(cache_folder, "ne_cache.pickle")
