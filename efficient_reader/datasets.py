@@ -58,27 +58,27 @@ class CBTDataSet(object):
     def inner_data_dir(self):
         return os.path.join(self.inner_data, "CBTest", "data")
 
-    def _vocab(self, vocab_file):
-        if os.path.exists(vocab_file):
-            with open(vocab_file, 'r') as f:
-                return pickle.load(f)
-
-        directories = ['data/train/', 'data/valid/', 'data/test/']
-        files = [directory + file_name for directory in directories \
-                 for file_name in os.listdir(directory)]
-        counter = Counter()
-        for file_name in files:
-            with open(file_name, 'r') as f:
-                file_string = f.read()
-                for cqa in file_string.split("\n\n"):
-                        if len(cqa) < 5:
-                            break
-                        context, query, answer = get_cqa_words(cqa)
-                        for token in context + query + answer:
-                            counter[token] += 1
-        with open(vocab_file, 'w') as f:
-            pickle.dump(counter, f)
-        return counter
+    # def _vocab(self, vocab_file):
+    #     if os.path.exists(vocab_file):
+    #         with open(vocab_file, 'r') as f:
+    #             return pickle.load(f)
+    #
+    #     directories = ['data/train/', 'data/valid/', 'data/test/']
+    #     files = [directory + file_name for directory in directories \
+    #              for file_name in os.listdir(directory)]
+    #     counter = Counter()
+    #     for file_name in files:
+    #         with open(file_name, 'r') as f:
+    #             file_string = f.read()
+    #             for cqa in file_string.split("\n\n"):
+    #                     if len(cqa) < 5:
+    #                         break
+    #                     context, query, answer = get_cqa_words(cqa)
+    #                     for token in context + query + answer:
+    #                         counter[token] += 1
+    #     with open(vocab_file, 'w') as f:
+    #         pickle.dump(counter, f)
+    #     return counter
 
     @classmethod
     def clean(self, string):
@@ -90,6 +90,18 @@ class CBTDataSet(object):
         last_line = cqa_split[1]
         query, answer = [clean(x) for x in last_line.split("\t", 2)[:2]]
         return context, query, answer
+
+    def named_entities(self, record_folder, perc=1.0, sort_asc=1):
+        directories = [os.path.join(record_folder, f) \
+                       for f in self._NAMED_ENTITY.values()]
+        if os.path.exists("ne_vocab"):
+            with open("ne_vocab", 'r') as f:
+                self.ne_vocab = pickle.load(f)
+        else:
+            self.ne_vocab = None
+        self.tokenize(self.index, self.word)
+
+
 
 
     def tokenize(self, index, word):
