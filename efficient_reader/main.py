@@ -2,8 +2,6 @@ import os
 import argparse
 import numpy as np
 import tensorflow as tf
-from models import DeepLSTM
-from utils import pp
 from datasets import CBTDataSet
 
 
@@ -59,9 +57,9 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-model_dict = {
-    'LSTM': DeepLSTM,
-}
+# model_dict = {
+#     'ASReader': ASReader,
+# }
 
 def main():
     cbt_dataset = CBTDataSet(data_dir="raw_data")
