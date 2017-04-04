@@ -26,11 +26,14 @@ class CBTDataSet(object):
         "test": "cbtest_NE_test_2500ex.txt"
     }
 
-    def __init__(self, data_dir="raw_data", in_memory=False, name="cbt_data",
+    def __init__(self, data_dir="data", in_memory=False, name="cbt_data",
                  *args, **kwargs):
         self.in_memory = in_memory
         self.top_data_dir = data_dir
         self.name = name
+
+        if not os.path.exists(data_dir):
+            os.mkdir(data_dir)
         self.from_url("http://www.thespermwhale.com/jaseweston/babi/CBTest.tgz")
 
     def from_url(self, url):
@@ -82,14 +85,14 @@ class CBTDataSet(object):
             self.obj = {
                 "train": [],
                 "valid": [],
-                "test": []
+                "test": [],
                 "vocab": dict()
             }
             self.counter = Counter()
 
-            for s, f_name in self._NAMED_ENTITY:
+            for s, f_name in self._NAMED_ENTITY.items():
                 full_path = os.path.join(self.inner_data_dir, f_name)
-                with open(f_name, 'r') as f:
+                with open(full_path, 'r') as f:
                     file_string = f.read()
                     for cqa in file_string.split("\n\n"):
                         if len(cqa) < 5:
@@ -101,9 +104,11 @@ class CBTDataSet(object):
                         for token in context + query + answer:
                             self.counter[token] += 1
             # Get all words in counter, and create word-id mapping
-            words, _ = zip(*counter.most_common())
+            words, _ = zip(*self.counter.most_common())
             self.obj["vocab"] = {token: i for i, token in enumerate(words)}
-    return self.obj
+            with open(cache_file_name, 'w') as f:
+                self.obj = pickle.dump(self.obj, f)
+        return self.obj
 
     def generate_tfrecord(self, name, examples, criterion=lambda x: True,
                           force=False):

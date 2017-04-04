@@ -62,7 +62,7 @@ args = parser.parse_args()
 # }
 
 def main():
-    cbt_dataset = CBTDataSet(data_dir="raw_data")
+    cbt_dataset = CBTDataSet(data_dir="data")
     obj = cbt_dataset.named_entities()
     train_tfrecord = cbt_dataset.generate_tfrecord("train_full", obj["train"])
     test_tfrecord = cbt_dataset.generate_tfrecord("test_full", obj["test"])
