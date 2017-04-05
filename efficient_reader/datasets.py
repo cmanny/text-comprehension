@@ -65,6 +65,7 @@ class CBTDataSet(object):
     def clean(self, string):
         return [re.sub("[\n0-9]", '', x) for x in string.split(" ")]
 
+    @classmethod
     def get_cqa_words(self, cqa):
         cqa_split = cqa.split("\n21 ")
         context = self.clean(cqa_split[0])
@@ -72,42 +73,47 @@ class CBTDataSet(object):
         query, answer = [self.clean(x) for x in last_line.split("\t", 2)[:2]]
         return context, query, answer
 
-    def named_entities(self):
-        cache_folder = "cache"
-        if not os.path.exists(cache_folder):
-            os.mkdir(cache_folder)
-        cache_file_name = os.path.join(cache_folder, "ne_cache.pickle")
-        if os.path.exists(cache_file_name):
-            with open(cache_file_name, 'r') as f:
-                self.obj = pickle.load(f)
-        else:
-            #If we don't already have this, create it
-            self.obj = {
-                "train": [],
-                "valid": [],
-                "test": [],
-                "vocab": dict()
-            }
-            self.counter = Counter()
+    @classmethod
+    def tfrecord_example(ic, iq, ia):
+        return tf.train.Example(
+             features = tf.train.Features(
+                 feature = {
+                     'document': tf.train.Feature(
+                         int64_list=tf.train.Int64List(value=ic)),
+                     'query': tf.train.Feature(
+                         int64_list=tf.train.Int64List(value=iq)),
+                     'answer': tf.train.Feature(
+                         int64_list=tf.train.Int64List(value=ia))
+                     }
+              )
+        )
 
-            for s, f_name in self._NAMED_ENTITY.items():
-                full_path = os.path.join(self.inner_data_dir, f_name)
-                with open(full_path, 'r') as f:
-                    file_string = f.read()
-                    for cqa in file_string.split("\n\n"):
-                        if len(cqa) < 5:
-                            break
-                        context, query, answer = self.get_cqa_words(cqa)
-                        self.obj[s].append(
-                            CBTExample(context, query, answer)
-                        )
-                        for token in context + query + answer:
-                            self.counter[token] += 1
-            # Get all words in counter, and create word-id mapping
-            words, _ = zip(*self.counter.most_common())
-            self.obj["vocab"] = {token: i for i, token in enumerate(words)}
-            with open(cache_file_name, 'w') as f:
-                self.obj = pickle.dump(self.obj, f)
+    def named_entities(self):
+        print("[*] Creating records from Named Entities")
+        self.obj = {
+            "train": [],
+            "valid": [],
+            "test": [],
+            "vocab": dict()
+        }
+        self.counter = Counter()
+        for s, f_name in self._NAMED_ENTITY.items():
+            full_path = os.path.join(self.inner_data_dir, f_name)
+            with open(full_path, 'r') as f:
+                file_string = f.read()
+                for cqa in file_string.split("\n\n"):
+                    if len(cqa) < 5:
+                        break
+                    context, query, answer = self.get_cqa_words(cqa)
+                    print(s)
+                    # self.obj[s].append(
+                    #     CBTExample(context, query, answer)
+                    # )
+                    for token in context + query + answer:
+                        self.counter[token] += 1
+        # Get all words in counter, and create word-id mapping
+        words, _ = zip(*self.counter.most_common())
+        self.obj["vocab"] = {token: i for i, token in enumerate(words)}
         return self.obj
 
     def generate_tfrecord(self, name, examples, criterion=lambda x: True,
