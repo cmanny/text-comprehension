@@ -60,7 +60,7 @@ args = parser.parse_args()
 
 def main():
     cbt_dataset = CBTDataSet(data_dir="data")
-    cbt_dataset.named_entities({
+    sampler_dict = {
         "train": [
             Sampler("full_train", lambda x: True),
             Sampler("word_distance_pass", models.word_distance),
@@ -74,7 +74,8 @@ def main():
         "test": [
             Sampler("full_test", lambda x: True)
         ]
-    })
+    }
+    cbt_dataset.named_entities(sampler_dict)
 
 if __name__ == '__main__':
     main()

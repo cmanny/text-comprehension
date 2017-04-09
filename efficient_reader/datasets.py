@@ -31,9 +31,9 @@ class Sampler(object):
               )
         )
 
-    def __call__(self, vocab, example):
+    def __call__(self, example):
         if self.filter_func(example):
-            i_cqac = example.index_list(vocab)
+            i_cqac = example.index_list()
             example = self.tfrecord_example(*i_cqac[:-1])
             serialized = example.SerializeToString()
             self.writer.write(serialized)
@@ -41,18 +41,19 @@ class Sampler(object):
 
 
 class CBTExample(object):
-    def __init__(self, index, context, query, answer, candidates):
+    def __init__(self, index, context, query, answer, candidates, vocab=None):
         self.index = index
         self.context = context
         self.query = query
         self.answer = answer
         self.candidates = candidates
+        self.vocab = vocab
 
-    def index_list(self, vocab_index):
-        self.i_context = [vocab_index[token] for token in self.context]
-        self.i_query = [vocab_index[token] for token in self.query]
-        self.i_answer = [vocab_index[token] for token in self.answer]
-        self.i_candidates = [vocab_index[token] for token in self.candidates]
+    def index_list(self):
+        self.i_context = [self.vocab[token] for token in self.context]
+        self.i_query = [self.vocab[token] for token in self.query]
+        self.i_answer = [self.vocab[token] for token in self.answer]
+        self.i_candidates = [self.vocab[token] for token in self.candidates]
         return (self.i_context, self.i_query, self.i_answer, self.i_candidates)
 
 
@@ -170,10 +171,11 @@ class CBTDataSet(object):
                         break
                     context, query, answer, candidates = self.get_cqac_words(cqac)
                     for sampler in filtered_dict[s]:
-                        sampler(self.vocab, CBTExample(
+                        sampler(CBTExample(
                             i,
                             context,
                             query,
                             answer,
-                            candidates
+                            candidates,
+                            vocab=self.vocab
                         ))
