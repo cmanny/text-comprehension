@@ -3,6 +3,7 @@ import time
 import random
 import numpy as np
 import tensorflow as tf
+from collections import Counter
 from tensorflow.python.ops import sparse_ops
 from network_util import softmax, orthogonal_initializer
 
@@ -10,7 +11,17 @@ def word_distance(example):
     return True
 
 def frequency(example):
-    return True
+    i_context, i_query, i_answer, i_candidates = example.index_list()
+    counter = Counter()
+    for word in i_context:
+        counter[word] += 1
+    predicted = max(
+        ((word, counter[word]) for word in i_candidates),
+        key=lambda x: x[1]
+    )[0]
+    if predicted == i_answer[0]:
+        return True
+    return False
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
