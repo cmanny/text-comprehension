@@ -25,10 +25,7 @@ def word_distance(example):
                     distances = [5]
                 penalty = min(5, *distances)
                 penalties[i] += penalty
-    predicted = i_candidates[min(
-        ((i, penalty) for penalty in enumerate(penalties)),
-        key=lambda x: x[1]
-    )[0]]
+    predicted = i_candidates[penalties.index(min(penalties))]
     if predicted == i_answer[0]:
         return True
     return False
