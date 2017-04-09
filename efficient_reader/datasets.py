@@ -12,9 +12,15 @@ class Sampler(object):
         self.filter_func = filter_func
 
         self.out_name = os.path.join("tfrecords/", name + ".tfrecords")
+        self.total_passed = 0
+        self.total_called = 0
 
     def open(self):
         self.writer = tf.python_io.TFRecordWriter(self.out_name)
+
+    @property
+    def accuracy(self):
+        return self.total_passed / self.total_called
 
     @classmethod
     def tfrecord_example(self, ic, iq, ia):
@@ -32,7 +38,9 @@ class Sampler(object):
         )
 
     def __call__(self, example):
+        self.total_called += 1
         if self.filter_func(example):
+            self.total_passed += 1
             i_cqac = example.index_list()
             example = self.tfrecord_example(*i_cqac[:-1])
             serialized = example.SerializeToString()
