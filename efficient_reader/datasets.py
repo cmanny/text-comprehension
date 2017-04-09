@@ -6,6 +6,11 @@ import re
 from collections import Counter
 import tensorflow as tf
 
+class Sampler(object):
+    def __init__(self, name, filter_func):
+        self.name = name
+        self.filter_func = filter_func
+
 class CBTExample(object):
     def __init__(self, context, query, answer):
         self.context = context
