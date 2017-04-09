@@ -6,12 +6,18 @@ import tensorflow as tf
 from tensorflow.python.ops import sparse_ops
 from network_util import softmax, orthogonal_initializer
 
+def word_distance(example):
+    return True
+
+def frequency(example):
+    return True
+
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('vocab_size', 62256, 'Vocabulary size')
 flags.DEFINE_integer('embedding_size', 384, 'Embedding dimension')
 flags.DEFINE_integer('hidden_size', 384, 'Hidden units')
-flags.DEFINE_integer('batch_size', 32, 'Batch size')
+flags.DEFINE_integer('atch_size', 32, 'Batch size')
 flags.DEFINE_integer('epochs', 2, 'Number of epochs to train/test')
 flags.DEFINE_boolean('training', False, 'Training or testing a model')
 flags.DEFINE_string('name', '', 'Model name (used for statistics and model path')

@@ -2,7 +2,8 @@ import os
 import argparse
 import numpy as np
 import tensorflow as tf
-from datasets import CBTDataSet
+import models
+from datasets import CBTDataSet, Sampler
 
 
 parser = argparse.ArgumentParser(description='How to run this')
@@ -57,17 +58,23 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-# model_dict = {
-#     'ASReader': ASReader,
-# }
-
 def main():
     cbt_dataset = CBTDataSet(data_dir="data")
-    obj = cbt_dataset.named_entities()
-    print(obj)
-    train_tfrecord = cbt_dataset.generate_tfrecord("train_full", obj["train"])
-    test_tfrecord = cbt_dataset.generate_tfrecord("test_full", obj["test"])
-    valid_tfrecord = cbt_dataset.generate_tfrecord("valid_full", obj["valid"])
+    cbt_dataset.named_entities({
+        "train": [
+            Sampler("full_train", lambda x: True),
+            Sampler("word_distance_pass", models.word_distance),
+            Sampler("word_distance_fail", lambda x: not models.word_distance(x)),
+            Sampler("frequency_pass", models.frequency),
+            Sampler("frequency_fail", lambda x: not models.frequency(x))
+        ],
+        "valid": [
+            Sampler("full_valid", lambda x: True)
+        ],
+        "test": [
+            Sampler("full_test", lambda x: True)
+        ]
+    })
 
 if __name__ == '__main__':
     main()
