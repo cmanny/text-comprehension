@@ -178,12 +178,13 @@ class CBTDataSet(object):
                     if len(cqac) < 5:
                         break
                     context, query, answer, candidates = self.get_cqac_words(cqac)
+                    example = CBTExample(
+                        i,
+                        context,
+                        query,
+                        answer,
+                        candidates,
+                        vocab=self.vocab
+                    )
                     for sampler in filtered_dict[s]:
-                        sampler(CBTExample(
-                            i,
-                            context,
-                            query,
-                            answer,
-                            candidates,
-                            vocab=self.vocab
-                        ))
+                        sampler(example)
