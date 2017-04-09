@@ -11,6 +11,9 @@ class Sampler(object):
         self.name = name
         self.filter_func = filter_func
 
+    def __call__(self, example):
+        self.filter_func(example)
+
 class CBTExample(object):
     def __init__(self, context, query, answer):
         self.context = context
