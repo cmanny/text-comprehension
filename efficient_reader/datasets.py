@@ -157,7 +157,9 @@ class CBTDataSet(object):
         if sum(len(x) for x in filtered_dict.values()) == 0:
             print("[*] Samples already complete, rerun if not")
             return
-        print("[*] Applying samples")
+        samples_str = "\n - ".join(y.name for x in filtered_dict.values() for y in x)
+        print("[*] Generating samples for \n - " + samples_str)
+        raw_input()
         for s, f_name in self._NAMED_ENTITY.items():
             full_path = os.path.join(self.inner_data_dir, f_name)
             with open(full_path, 'r') as f:
