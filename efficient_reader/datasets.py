@@ -11,8 +11,10 @@ class Sampler(object):
         self.name = name
         self.filter_func = filter_func
 
-        out_name = os.path.join("tfrecords/", name + ".tfrecords")
-        self.writer = tf.python_io.TFRecordWriter(out_name)
+        self.out_name = os.path.join("tfrecords/", name + ".tfrecords")
+
+    def open(self):
+        self.writer = tf.python_io.TFRecordWriter(self.out_name)
 
     @classmethod
     def tfrecord_example(self, ic, iq, ia):
@@ -33,7 +35,6 @@ class Sampler(object):
         if self.filter_func(example):
             i_cqac = example.index_list(vocab)
             example = self.tfrecord_example(*i_cqac[:-1])
-            print(example)
             serialized = example.SerializeToString()
             self.writer.write(serialized)
 
@@ -151,17 +152,21 @@ class CBTDataSet(object):
             for s in sample_list:
                 if not os.path.exists("tfrecords/" + s.name + ".tfrecords"):
                     filtered_dict[group] += [s]
+                    s.open()
 
+        if sum(len(x) for x in filtered_dict.values()) == 0:
+            print("[*] Samples already complete, rerun if not")
+            return
         print("[*] Applying samples")
         for s, f_name in self._NAMED_ENTITY.items():
             full_path = os.path.join(self.inner_data_dir, f_name)
             with open(full_path, 'r') as f:
                 file_string = f.read()
                 for i, cqac in enumerate(file_string.split("\n\n")):
+                    print i
                     if len(cqac) < 5:
                         break
                     context, query, answer, candidates = self.get_cqac_words(cqac)
-                    print(query)
                     for sampler in filtered_dict[s]:
                         sampler(self.vocab, CBTExample(
                             i,
