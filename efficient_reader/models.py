@@ -8,7 +8,27 @@ from tensorflow.python.ops import sparse_ops
 from network_util import softmax, orthogonal_initializer
 
 def word_distance(example):
-    return True
+    i_context, i_query, i_answer, i_candidates = example.index_list()
+    i_missing = example.vocab["XXXXX"]
+    missing_index = i_candidates.index(i_missing)
+    positions = {word: [] for word in i_context}
+    for i, word in enumerate(i_context):
+        positions[word].append(i)
+    penalties = [0 for _ in range(i_candidates)]
+    for i, candidate in enumerate(i_candidates):
+        for position in positions[candidate]:
+            for j, word in enumerate(i_query):
+                context_index = position + j - missing_index
+                distances = [abs(context_index - x) for x in positions[word]]
+                penalty = min(5, *distances)
+                penalties[i] += penalty
+    predicted = i_candidates[min(
+        ((i, penalty) for penalty in penalties),
+        key=lambda x: x[1]
+    )[0]]
+    if predicted == i_answer[0]:
+        return True
+    return False
 
 def frequency(example):
     i_context, i_query, i_answer, i_candidates = example.index_list()
@@ -28,7 +48,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer('vocab_size', 62256, 'Vocabulary size')
 flags.DEFINE_integer('embedding_size', 384, 'Embedding dimension')
 flags.DEFINE_integer('hidden_size', 384, 'Hidden units')
-flags.DEFINE_integer('atch_size', 32, 'Batch size')
+flags.DEFINE_integer('batch_size', 32, 'Batch size')
 flags.DEFINE_integer('epochs', 2, 'Number of epochs to train/test')
 flags.DEFINE_boolean('training', False, 'Training or testing a model')
 flags.DEFINE_string('name', '', 'Model name (used for statistics and model path')
