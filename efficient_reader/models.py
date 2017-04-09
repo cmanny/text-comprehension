@@ -10,20 +10,23 @@ from network_util import softmax, orthogonal_initializer
 def word_distance(example):
     i_context, i_query, i_answer, i_candidates = example.index_list()
     i_missing = example.vocab["XXXXX"]
-    missing_index = i_candidates.index(i_missing)
+    missing_index = i_query.index(i_missing)
     positions = {word: [] for word in i_context}
     for i, word in enumerate(i_context):
         positions[word].append(i)
-    penalties = [0 for _ in range(i_candidates)]
+    penalties = [0 for _ in i_candidates]
     for i, candidate in enumerate(i_candidates):
         for position in positions[candidate]:
             for j, word in enumerate(i_query):
                 context_index = position + j - missing_index
-                distances = [abs(context_index - x) for x in positions[word]]
+                if word in positions:
+                    distances = [abs(context_index - x) for x in positions[word]]
+                else:
+                    distances = [5]
                 penalty = min(5, *distances)
                 penalties[i] += penalty
     predicted = i_candidates[min(
-        ((i, penalty) for penalty in penalties),
+        ((i, penalty) for penalty in enumerate(penalties)),
         key=lambda x: x[1]
     )[0]]
     if predicted == i_answer[0]:
