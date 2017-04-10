@@ -61,9 +61,9 @@ if not os.path.exists(model_path):
     os.makedirs(model_path)
 
 def read_records(index=0):
-  train_queue = tf.train.string_input_producer(['train.tfrecords'], num_epochs=FLAGS.epochs)
-  validation_queue = tf.train.string_input_producer(['valid.tfrecords'], num_epochs=FLAGS.epochs)
-  test_queue = tf.train.string_input_producer(['test.tfrecords'], num_epochs=FLAGS.epochs)
+  train_queue = tf.train.string_input_producer(['tfrecords/full_train.tfrecords'], num_epochs=FLAGS.epochs)
+  validation_queue = tf.train.string_input_producer(['tfrecords/full_valid.tfrecords'], num_epochs=FLAGS.epochs)
+  test_queue = tf.train.string_input_producer(['tfrecords/full_test.tfrecords'], num_epochs=FLAGS.epochs)
   print(train_queue)
 
   queue = tf.QueueBase.from_list(index, [train_queue, validation_queue, test_queue])
@@ -89,10 +89,10 @@ def read_records(index=0):
   sparse_query_batch = sparse_ops.deserialize_many_sparse(query_batch_serialized, dtype=tf.int64)
 
   document_batch = tf.sparse_tensor_to_dense(sparse_document_batch)
-  document_weights = tf.sparse_to_dense(sparse_document_batch.indices, sparse_document_batch.shape, 1)
+  document_weights = tf.sparse_to_dense(sparse_document_batch.indices, sparse_document_batch.dense_shape, 1)
 
   query_batch = tf.sparse_tensor_to_dense(sparse_query_batch)
-  query_weights = tf.sparse_to_dense(sparse_query_batch.indices, sparse_query_batch.shape, 1)
+  query_weights = tf.sparse_to_dense(sparse_query_batch.indices, sparse_query_batch.dense_shape, 1)
 
   return document_batch, document_weights, query_batch, query_weights, answer_batch
 
@@ -111,8 +111,8 @@ def inference(documents, doc_mask, query, query_mask):
   query_emb.set_shape([None, None, FLAGS.embedding_size])
 
   with tf.variable_scope('document', initializer=orthogonal_initializer()):
-    fwd_cell = tf.nn.rnn_cell.GRUCell(FLAGS.hidden_size)
-    back_cell = tf.nn.rnn_cell.GRUCell(FLAGS.hidden_size)
+    fwd_cell = tf.contrib.rnn.GRUCell(FLAGS.hidden_size)
+    back_cell = tf.contrib.rnn.GRUCell(FLAGS.hidden_size)
 
     doc_len = tf.reduce_sum(doc_mask, axis=1)
     h, _ = tf.nn.bidirectional_dynamic_rnn(
@@ -121,8 +121,8 @@ def inference(documents, doc_mask, query, query_mask):
     h_doc = tf.concat(axis=2, values=h)
 
   with tf.variable_scope('query', initializer=orthogonal_initializer()):
-    fwd_cell = tf.nn.rnn_cell.GRUCell(FLAGS.hidden_size)
-    back_cell = tf.nn.rnn_cell.GRUCell(FLAGS.hidden_size)
+    fwd_cell = tf.contrib.rnn.GRUCell(FLAGS.hidden_size)
+    back_cell = tf.contrib.rnn.GRUCell(FLAGS.hidden_size)
 
     query_len = tf.reduce_sum(query_mask, axis=1)
     h, _ = tf.nn.bidirectional_dynamic_rnn(
@@ -130,7 +130,7 @@ def inference(documents, doc_mask, query, query_mask):
     #h_query = tf.nn.dropout(tf.concat(2, h), FLAGS.dropout_keep_prob)
     h_query = tf.concat(axis=2, values=h)
 
-  M = tf.matmul(h_doc, h_query, adj_y=True)
+  M = tf.matmul(h_doc, h_query, adjoint_b=True)
   M_mask = tf.to_float(tf.matmul(tf.expand_dims(doc_mask, -1), tf.expand_dims(query_mask, 1)))
 
   alpha = softmax(M, 1, M_mask)

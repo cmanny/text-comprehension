@@ -77,5 +77,8 @@ def main():
     }
     cbt_dataset.named_entities(sampler_dict)
 
+    print("running main")
+    models.main()
+
 if __name__ == '__main__':
     main()
