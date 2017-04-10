@@ -18,9 +18,9 @@ class Sampler(object):
     def open(self):
         self.writer = tf.python_io.TFRecordWriter(self.out_name)
 
-    @property
+
     def accuracy(self):
-        return self.total_passed / self.total_called
+        return 100 * self.total_passed / self.total_called
 
     @classmethod
     def tfrecord_example(self, ic, iq, ia):
@@ -174,7 +174,7 @@ class CBTDataSet(object):
             with open(full_path, 'r') as f:
                 file_string = f.read()
                 for i, cqac in enumerate(file_string.split("\n\n")):
-                    print i
+                    print(i)
                     if len(cqac) < 5:
                         break
                     context, query, answer, candidates = self.get_cqac_words(cqac)
@@ -188,3 +188,7 @@ class CBTDataSet(object):
                     )
                     for sampler in filtered_dict[s]:
                         sampler(example)
+        for group, sample_list in filtered_dict.items():
+            print(group)
+            for s in sample_list:
+                print("{} {}".format(s.name, s.accuracy()))
