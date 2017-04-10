@@ -6,6 +6,7 @@ import tensorflow as tf
 from collections import Counter
 from tensorflow.python.ops import sparse_ops
 from network_util import softmax, orthogonal_initializer
+from tensorflow.contrib.tensorboard.plugins import projector
 
 def word_distance(example):
     i_context, i_query, i_answer, i_candidates = example.index_list()
@@ -50,7 +51,7 @@ flags.DEFINE_integer('embedding_size', 384, 'Embedding dimension')
 flags.DEFINE_integer('hidden_size', 384, 'Hidden units')
 flags.DEFINE_integer('batch_size', 32, 'Batch size')
 flags.DEFINE_integer('epochs', 2, 'Number of epochs to train/test')
-flags.DEFINE_boolean('training', False, 'Training or testing a model')
+flags.DEFINE_boolean('training', True, 'Training or testing a model')
 flags.DEFINE_string('name', '', 'Model name (used for statistics and model path')
 flags.DEFINE_float('dropout_keep_prob', 0.9, 'Keep prob for embedding dropout')
 flags.DEFINE_float('l2_reg', 0.0001, 'l2 regularization for embeddings')
@@ -181,6 +182,12 @@ def main():
 
   with tf.Session() as sess:
     summary_writer = tf.summary.FileWriter(model_path, sess.graph)
+    config = projector.ProjectorConfig()
+    embedding = config.embeddings.add()
+    embedding.tensor_name = "embedding"
+    embedding.metadata_path = 'cache/embedding.meta'
+    projector.visualize_embeddings(summary_writer, config)
+
     saver_variables = tf.global_variables()
     if not FLAGS.training:
       saver_variables = filter(lambda var: var.name != 'input_producer/limit_epochs/epochs:0', saver_variables)

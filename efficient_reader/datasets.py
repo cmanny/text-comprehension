@@ -136,7 +136,7 @@ class CBTDataSet(object):
         # Get all words in counter, and create word-id mapping
         words, _ = zip(*counter.most_common())
         vocab = {token: i for i, token in enumerate(words)}
-        return vocab
+        return vocab, words
 
     def named_entities(self, sample_dict):
         print("[*] Creating records from Named Entities")
@@ -146,9 +146,12 @@ class CBTDataSet(object):
             with open(vocab_path, 'r') as vf:
                 self.vocab = pickle.load(vf)
         else:
-            self.vocab = self.make_vocab(self._NAMED_ENTITY)
+            self.vocab, words = self.make_vocab(self._NAMED_ENTITY)
             with open(vocab_path, 'w') as vf:
                 pickle.dump(self.vocab, vf)
+            embedding_str = "\n".join(w for w in words)
+            with open(os.path.join("cache", "embedding.meta"), 'w') as ef:
+                ef.write(embedding_str)
 
         filtered_dict = {
             "train": [],
