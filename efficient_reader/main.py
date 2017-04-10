@@ -1,4 +1,5 @@
 import os
+import sys
 import argparse
 import numpy as np
 import tensorflow as tf
@@ -56,6 +57,12 @@ parser.add_argument(
     default=False,
     help="True for forward only, False for training [False]"
 )
+parser.add_argument(
+    "-sample",
+    type=str,
+    default="full_train",
+    help="Dataset sample to use"
+)
 args = parser.parse_args()
 
 def main():
@@ -77,8 +84,9 @@ def main():
     }
     cbt_dataset.named_entities(sampler_dict)
 
-    print("running main")
-    models.main("basic")
+    print("running model {}".format(args.sample))
+    models.main(args.sample)
+
 
 if __name__ == '__main__':
     main()

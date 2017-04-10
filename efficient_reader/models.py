@@ -56,8 +56,8 @@ flags.DEFINE_string('name', '', 'Model name (used for statistics and model path'
 flags.DEFINE_float('dropout_keep_prob', 0.9, 'Keep prob for embedding dropout')
 flags.DEFINE_float('l2_reg', 0.0001, 'l2 regularization for embeddings')
 
-def read_records(index=0):
-  train_queue = tf.train.string_input_producer(['tfrecords/full_train.tfrecords'], num_epochs=FLAGS.epochs)
+def read_records(index=0, sample_name="full_train"):
+  train_queue = tf.train.string_input_producer(['tfrecords/' + sample_name + '.tfrecords'], num_epochs=FLAGS.epochs)
   validation_queue = tf.train.string_input_producer(['tfrecords/full_valid.tfrecords'], num_epochs=FLAGS.epochs)
   test_queue = tf.train.string_input_producer(['tfrecords/full_test.tfrecords'], num_epochs=FLAGS.epochs)
   print(train_queue)
@@ -172,7 +172,7 @@ def main(model_name):
   if not os.path.exists(model_path):
       os.makedirs(model_path)
   dataset = tf.placeholder_with_default(0, [])
-  document_batch, document_weights, query_batch, query_weights, answer_batch = read_records(dataset)
+  document_batch, document_weights, query_batch, query_weights, answer_batch = read_records(index=dataset, sample_name=model_name)
 
   y_hat, reg = inference(document_batch, document_weights, query_batch, query_weights)
   loss, train_op, global_step, accuracy = train(y_hat, reg, document_batch, document_weights, answer_batch)
