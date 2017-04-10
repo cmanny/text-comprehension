@@ -27,22 +27,15 @@ def word_distance(example):
                 penalty = min(5, *distances)
                 penalties[i] += penalty
     predicted = i_candidates[penalties.index(min(penalties))]
-    if predicted == i_answer[0]:
-        return True
-    return False
+    return predicted == i_answer[0]
 
 def frequency(example):
     i_context, i_query, i_answer, i_candidates = example.index_list()
     counter = Counter()
     for word in i_context:
         counter[word] += 1
-    predicted = max(
-        ((word, counter[word]) for word in i_candidates),
-        key=lambda x: x[1]
-    )[0]
-    if predicted == i_answer[0]:
-        return True
-    return False
+    predicted = max(i_candidates, key=(lambda word: counter[word]))
+    return predicted == i_answer[0]
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
