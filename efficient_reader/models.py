@@ -46,7 +46,7 @@ def frequency(example):
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_integer('vocab_size', 62256, 'Vocabulary size')
+flags.DEFINE_integer('vocab_size', 62255, 'Vocabulary size')
 flags.DEFINE_integer('embedding_size', 384, 'Embedding dimension')
 flags.DEFINE_integer('hidden_size', 384, 'Hidden units')
 flags.DEFINE_integer('batch_size', 32, 'Batch size')
@@ -172,7 +172,7 @@ def train(y_hat, regularizer, document, doc_weight, answer):
   tf.summary.scalar('accuracy', accuracy)
   return loss, train_op, global_step, accuracy
 
-def main():
+def main(model_name):
   dataset = tf.placeholder_with_default(0, [])
   document_batch, document_weights, query_batch, query_weights, answer_batch = read_records(dataset)
 
@@ -214,11 +214,11 @@ def main():
           loss_t, _, step, acc = sess.run([loss, train_op, global_step, accuracy], feed_dict={dataset: 0})
           elapsed_time, start_time = time.time() - start_time, time.time()
           print(step, loss_t, acc, elapsed_time)
-          if step % 1 == 0:
+          if step % 5 == 0:
             summary_str = sess.run(summary_op)
             summary_writer.add_summary(summary_str, step)
           if step % 100 == 0:
-            saver.save(sess, model_path + '/reed', global_step=step)
+            saver.save(sess, model_path + "/" + model_name + "/" + str(step), global_step=step)
       else:
         step = 0
         while not coord.should_stop():
