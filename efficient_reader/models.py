@@ -216,7 +216,7 @@ def main(model_name):
             summary_str = sess.run(summary_op)
             summary_writer.add_summary(summary_str, step)
           if step % 100 == 0:
-            saver.save(sess, model_path + "/" + model_name + "/" + str(step), global_step=step)
+            saver.save(sess, model_path + "/", global_step=step)
       else:
         step = 0
         while not coord.should_stop():
