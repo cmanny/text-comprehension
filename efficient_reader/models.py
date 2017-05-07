@@ -184,7 +184,7 @@ def train(y_hat, regularizer, document, doc_weight, answer):
   return loss, train_op, global_step, accuracy
 
 def main(sample_name, model_name, forward_only):
-  model_path = 'models/' + model_name + "_l2reg_" + str(FLAGS.l2_reg)
+  model_path = 'models/' + model_name
   if not os.path.exists(model_path):
       os.makedirs(model_path)
   dataset = tf.placeholder_with_default(2 if forward_only else 0, [])
