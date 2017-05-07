@@ -1,5 +1,5 @@
 python efficient_reader/main.py -sample full_train
-python efficient_reader/main.py -sample full_train --training True
+python efficient_reader/main.py -sample full_train -forward_only True
 
 
 
