@@ -192,6 +192,8 @@ def main(model_name, forward_only, cp=None):
 
   y_hat, reg = inference(document_batch, document_weights, query_batch, query_weights)
   loss, train_op, global_step, accuracy = train(y_hat, reg, document_batch, document_weights, answer_batch)
+  for var in tf.trainable_variables():
+      tf.histogram_summary(var.name, var)
   summary_op = tf.summary.merge_all()
 
   with tf.Session() as sess:
