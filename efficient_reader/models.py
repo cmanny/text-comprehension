@@ -240,6 +240,7 @@ def main(sample_name, model_name, forward_only):
       else:
         step = 0
         print(model_name)
+        saver.restore(sess, model_path + "/" + "run-100")
         while not coord.should_stop():
           acc = sess.run(accuracy, feed_dict={dataset: 2})
           step += 1
@@ -249,6 +250,9 @@ def main(sample_name, model_name, forward_only):
 
           # stop test after a few runs
           if step % 20 == 0:
+            mp = model_path + "/" + (step + 20) * 5
+            print("Restoring " + )
+            saver.restore(sess, mp)
             print(accumulated_accuracy)
     except tf.errors.OutOfRangeError:
       print('Done!')
