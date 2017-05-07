@@ -87,37 +87,55 @@ def read_records(index=0, sample_name="full_train"):
 
 def inference(documents, doc_mask, query, query_mask):
 
+  # the embedding may already exist so we use tf.get_variable to find it if
+  # it already exists, initialize to random uniform values if created
   embedding = tf.get_variable('embedding',
               [FLAGS.vocab_size, FLAGS.embedding_size],
               initializer=tf.random_uniform_initializer(minval=-0.05, maxval=0.05))
 
+  # using regularizer to reduce overfitting
   regularizer = tf.nn.l2_loss(embedding)
 
+  # look up embeddings for document, and use dropout
   doc_emb = tf.nn.dropout(tf.nn.embedding_lookup(embedding, documents), FLAGS.dropout_keep_prob)
   doc_emb.set_shape([None, None, FLAGS.embedding_size])
 
+  # look up embeddings for query, and use dropout
   query_emb = tf.nn.dropout(tf.nn.embedding_lookup(embedding, query), FLAGS.dropout_keep_prob)
   query_emb.set_shape([None, None, FLAGS.embedding_size])
 
   with tf.variable_scope('document', initializer=orthogonal_initializer()):
+    # we use GRU cells as given in the paper, however other cells could be used
     fwd_cell = tf.contrib.rnn.GRUCell(FLAGS.hidden_size)
     back_cell = tf.contrib.rnn.GRUCell(FLAGS.hidden_size)
 
+    # we need to specify the query length as an rnn argument
     doc_len = tf.reduce_sum(doc_mask, axis=1)
-    h, _ = tf.nn.bidirectional_dynamic_rnn(
-        fwd_cell, back_cell, doc_emb, sequence_length=tf.to_int64(doc_len), dtype=tf.float32)
-    #h_doc = tf.nn.dropout(tf.concat(2, h), FLAGS.dropout_keep_prob)
-    h_doc = tf.concat(axis=2, values=h)
+
+    # one may either use output_states, the first return value, or
+    # final_state, the second return value. The first return value gives
+    # all of the outputs after every input, while the second return value
+    # gives only the final output aftre every input has been passed through
+    output_states, _ = tf.nn.bidirectional_dynamic_rnn(
+        fwd_cell, back_cell, doc_emb, sequence_length=tf.to_int64(doc_len), dtype=tf.float32
+    )
+
+    # concatenate forward and backward cells into one tensor
+    h_doc = tf.concat(axis=2, values=output_states)
 
   with tf.variable_scope('query', initializer=orthogonal_initializer()):
+    # we use GRU cells as given in the paper, however other cells could be used
     fwd_cell = tf.contrib.rnn.GRUCell(FLAGS.hidden_size)
     back_cell = tf.contrib.rnn.GRUCell(FLAGS.hidden_size)
 
+    # we need to specify the query length as an rnn argument
     query_len = tf.reduce_sum(query_mask, axis=1)
-    h, _ = tf.nn.bidirectional_dynamic_rnn(
-        fwd_cell, back_cell, query_emb, sequence_length=tf.to_int64(query_len), dtype=tf.float32)
-    #h_query = tf.nn.dropout(tf.concat(2, h), FLAGS.dropout_keep_prob)
-    h_query = tf.concat(axis=2, values=h)
+    output_states, _ = tf.nn.bidirectional_dynamic_rnn(
+        fwd_cell, back_cell, query_emb, sequence_length=tf.to_int64(query_len), dtype=tf.float32
+    )
+
+    # concatenate forward and backward cells into one tensor
+    h_query = tf.concat(axis=2, values=output_states)
 
   M = tf.matmul(h_doc, h_query, adjoint_b=True)
   M_mask = tf.to_float(tf.matmul(tf.expand_dims(doc_mask, -1), tf.expand_dims(query_mask, 1)))
@@ -131,6 +149,8 @@ def inference(documents, doc_mask, query, query_mask):
   s = tf.squeeze(tf.matmul(alpha, query_importance), [2])
 
   unpacked_s = zip(tf.unstack(s, FLAGS.batch_size), tf.unstack(documents, FLAGS.batch_size))
+
+  # create the vocabulary x batch sized list votes for words
   y_hat = tf.stack([tf.unsorted_segment_sum(attentions, sentence_ids, FLAGS.vocab_size) for (attentions, sentence_ids) in unpacked_s])
 
   return y_hat, regularizer
@@ -153,6 +173,8 @@ def train(y_hat, regularizer, document, doc_weight, answer):
 
   optimizer = tf.train.AdamOptimizer()
   grads_and_vars = optimizer.compute_gradients(loss)
+
+  # use clipping on gradients to prevent explosion or implosion
   capped_grads_and_vars = [(tf.clip_by_value(grad, -5, 5), var) for (grad, var) in grads_and_vars]
   train_op = optimizer.apply_gradients(capped_grads_and_vars, global_step=global_step)
 
@@ -210,14 +232,30 @@ def main(model_name):
             summary_writer.add_summary(summary_str, step)
           if step % 100 == 0:
             saver.save(sess, model_path + "/", global_step=step)
+            if step != 0:
+                coord.request_stop()
       else:
         step = 0
+        ta_path = "ta_{}.pickle".format(model_name)
         while not coord.should_stop():
           acc = sess.run(accuracy, feed_dict={dataset: 2})
           step += 1
           accumulated_accuracy += (acc - accumulated_accuracy) / step
           elapsed_time, start_time = time.time() - start_time, time.time()
           print(accumulated_accuracy, acc, elapsed_time)
+
+          if step % 20 == 0:
+            if os.path.exists(ta_path):
+              with open(ta_path, 'r+') as tap:
+                ta_dict = pickle.load(tap)
+                ta_dict[model_name] += [accumulated_accuracy]
+                pickle.dump(ta_dict, tap)
+            else:
+              with open(ta_path, 'w') as tap:
+                ta_dict = dict()
+                ta_dict[model_name] = [accumulated_accuracy]
+                pickle.dump(ta_dict, tap)
+            coord.request_stop()
     except tf.errors.OutOfRangeError:
       print('Done!')
     finally:

@@ -85,7 +85,7 @@ def main():
     cbt_dataset.named_entities(sampler_dict)
 
     print("running model {}".format(args.sample))
-    models.main(args.sample)
+    models.main(args.sample, args.forward_only)
 
 
 if __name__ == '__main__':
