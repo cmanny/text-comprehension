@@ -63,6 +63,12 @@ parser.add_argument(
     default="full_train",
     help="Dataset sample to use"
 )
+parser.add_argument(
+    "-model",
+    type=str,
+    default="full_train",
+    help="Model to use as previously saved"
+)
 args = parser.parse_args()
 
 def main():
