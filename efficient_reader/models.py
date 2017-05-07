@@ -183,7 +183,7 @@ def train(y_hat, regularizer, document, doc_weight, answer):
   tf.summary.scalar('accuracy', accuracy)
   return loss, train_op, global_step, accuracy
 
-def main(model_name, forward_only):
+def main(model_name, forward_only, cp=None):
   model_path = 'models/' + model_name
   if not os.path.exists(model_path):
       os.makedirs(model_path)
@@ -213,11 +213,11 @@ def main(model_name, forward_only):
         tf.global_variables_initializer(),
         tf.local_variables_initializer()])
     model = tf.train.latest_checkpoint(model_path)
-    print(model)
+    if cp != None:
+        model = model_path + "/" + cp
     if model:
       print('Restoring ' + model)
       saver.restore(sess, model)
-      print(saver.last_checkpoints)
 
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)
