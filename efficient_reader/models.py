@@ -216,6 +216,7 @@ def main(model_name, forward_only):
     if model:
       print('Restoring ' + model)
       saver.restore(sess, model)
+      print(saver.last_checkpoints)
 
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)
@@ -233,8 +234,6 @@ def main(model_name, forward_only):
             summary_writer.add_summary(summary_str, step)
           if step % 100 == 0:
             saver.save(sess, model_path + "/run", global_step=step)
-            if step != 0:
-                coord.request_stop()
       else:
         step = 0
         ta_path = "ta_{}.pickle".format(model_name)
