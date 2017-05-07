@@ -239,7 +239,7 @@ def main(sample_name, model_name, forward_only):
             saver.save(sess, model_path + "/run", global_step=step)
       else:
         step = 0
-        ta_path = "ta_{}.pickle".format(model_name)
+        print(model_name)
         while not coord.should_stop():
           acc = sess.run(accuracy, feed_dict={dataset: 2})
           step += 1
@@ -249,17 +249,7 @@ def main(sample_name, model_name, forward_only):
 
           # stop test after a few runs
           if step % 20 == 0:
-            if os.path.exists(ta_path):
-              with open(ta_path, 'r+') as tap:
-                ta_dict = pickle.load(tap)
-                ta_dict[model_name] += [accumulated_accuracy]
-                pickle.dump(ta_dict, tap)
-            else:
-              with open(ta_path, 'w') as tap:
-                ta_dict = dict()
-                ta_dict[model_name] = [accumulated_accuracy]
-                pickle.dump(ta_dict, tap)
-            coord.request_stop()
+            print(accumulated_accuracy)
     except tf.errors.OutOfRangeError:
       print('Done!')
     finally:
