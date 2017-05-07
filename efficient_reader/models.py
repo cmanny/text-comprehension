@@ -247,7 +247,7 @@ def main(sample_name, model_name, forward_only):
 
           # stop test after a few runs
           if step % 20 == 0:
-            mp = model_path + "/run-{}".format((step + 20) * 20)
+            mp = model_path + "/run-{}".format((step / 20) * 500)
             print("Restoring " + mp)
             saver.restore(sess, mp)
             print(accumulated_accuracy, acc, elapsed_time)
