@@ -251,7 +251,7 @@ def main(sample_name, model_name, forward_only):
           # stop test after a few runs
           if step % 20 == 0:
             mp = model_path + "/" + (step + 20) * 5
-            print("Restoring " + )
+            print("Restoring " + mp)
             saver.restore(sess, mp)
             print(accumulated_accuracy)
     except tf.errors.OutOfRangeError:
