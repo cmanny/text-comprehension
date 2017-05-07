@@ -182,11 +182,11 @@ def train(y_hat, regularizer, document, doc_weight, answer):
   tf.summary.scalar('accuracy', accuracy)
   return loss, train_op, global_step, accuracy
 
-def main(model_name):
+def main(model_name, forward_only):
   model_path = 'models/' + model_name
   if not os.path.exists(model_path):
       os.makedirs(model_path)
-  dataset = tf.placeholder_with_default(0, [])
+  dataset = tf.placeholder_with_default(2 if forward_only else 0, [])
   document_batch, document_weights, query_batch, query_weights, answer_batch = read_records(index=dataset, sample_name=model_name)
 
   y_hat, reg = inference(document_batch, document_weights, query_batch, query_weights)
@@ -222,7 +222,7 @@ def main(model_name):
     start_time = time.time()
     accumulated_accuracy = 0
     try:
-      if FLAGS.training:
+      if not forward_only:
         while not coord.should_stop():
           loss_t, _, step, acc = sess.run([loss, train_op, global_step, accuracy], feed_dict={dataset: 0})
           elapsed_time, start_time = time.time() - start_time, time.time()
@@ -244,6 +244,7 @@ def main(model_name):
           elapsed_time, start_time = time.time() - start_time, time.time()
           print(accumulated_accuracy, acc, elapsed_time)
 
+          # stop test after a few runs
           if step % 20 == 0:
             if os.path.exists(ta_path):
               with open(ta_path, 'r+') as tap:
