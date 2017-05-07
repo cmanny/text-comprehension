@@ -215,8 +215,6 @@ def main(sample_name, model_name, forward_only):
         tf.global_variables_initializer(),
         tf.local_variables_initializer()])
     model = tf.train.latest_checkpoint(model_path)
-    if cp != None:
-        model = model_path + "/" + cp
     if model:
       print('Restoring ' + model)
       saver.restore(sess, model)
