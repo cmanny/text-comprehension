@@ -207,7 +207,7 @@ def main(model_name, forward_only, cp=None):
       saver_variables = filter(lambda var: var.name != 'input_producer/limit_epochs/epochs:0', saver_variables)
       saver_variables = filter(lambda var: var.name != 'smooth_acc:0', saver_variables)
       saver_variables = filter(lambda var: var.name != 'avg_acc:0', saver_variables)
-    saver = tf.train.Saver(saver_variables)
+    saver = tf.train.Saver(saver_variables, max_to_keep=100)
 
     sess.run([
         tf.global_variables_initializer(),
