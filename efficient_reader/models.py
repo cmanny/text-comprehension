@@ -244,14 +244,13 @@ def main(sample_name, model_name, forward_only):
           step += 1
           accumulated_accuracy += (acc - accumulated_accuracy) / step
           elapsed_time, start_time = time.time() - start_time, time.time()
-          print(accumulated_accuracy, acc, elapsed_time)
 
           # stop test after a few runs
           if step % 20 == 0:
-            mp = model_path + "/" + (step + 20) * 5
+            mp = model_path + "/run-{}".format((step + 20) * 5)
             print("Restoring " + mp)
             saver.restore(sess, mp)
-            print(accumulated_accuracy)
+            print(accumulated_accuracy, acc, elapsed_time)
     except tf.errors.OutOfRangeError:
       print('Done!')
     finally:
