@@ -28,12 +28,6 @@ parser.add_argument(
     help="Learning rate [0.00005]"
 )
 parser.add_argument(
-    "-model",
-    type=str,
-    default="LSTM",
-    help="The type of model to train and test [LSTM]"
-)
-parser.add_argument(
     "-data_dir",
     type=str,
     default="data",
