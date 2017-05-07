@@ -48,7 +48,7 @@ flags.DEFINE_integer('epochs', 2, 'Number of epochs to train/test')
 flags.DEFINE_boolean('training', True, 'Training or testing a model')
 flags.DEFINE_string('name', '', 'Model name (used for statistics and model path')
 flags.DEFINE_float('dropout_keep_prob', 0.9, 'Keep prob for embedding dropout')
-flags.DEFINE_float('l2_reg', 0.0001, 'l2 regularization for embeddings')
+flags.DEFINE_float('l2_reg', 0.0005, 'l2 regularization for embeddings')
 
 def read_records(index=0, sample_name="full_train"):
   train_queue = tf.train.string_input_producer(['tfrecords/' + sample_name + '.tfrecords'], num_epochs=FLAGS.epochs)
@@ -184,7 +184,7 @@ def train(y_hat, regularizer, document, doc_weight, answer):
   return loss, train_op, global_step, accuracy
 
 def main(model_name, forward_only, cp=None):
-  model_path = 'models/' + model_name
+  model_path = 'models/' + model_name + "_l2reg_" + str(FLAGS.l2_reg)
   if not os.path.exists(model_path):
       os.makedirs(model_path)
   dataset = tf.placeholder_with_default(2 if forward_only else 0, [])
