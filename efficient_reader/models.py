@@ -213,6 +213,7 @@ def main(model_name, forward_only):
         tf.global_variables_initializer(),
         tf.local_variables_initializer()])
     model = tf.train.latest_checkpoint(model_path)
+    print(model)
     if model:
       print('Restoring ' + model)
       saver.restore(sess, model)
