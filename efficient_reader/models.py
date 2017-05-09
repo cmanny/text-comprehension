@@ -228,6 +228,7 @@ class ASReader(object):
                           [self.loss, self.train_op, self.global_step, self.accuracy]
                         )
                         elapsed_time, start_time = time.time() - start_time, time.time()
+                        print(acc, loss_t, elapsed_time)
 
                         if step % 10 == 0:
                             summary_str = sess.run(summary_op)
