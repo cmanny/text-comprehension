@@ -201,7 +201,7 @@ class CBTDataSet(object):
                 print("{} {}".format(s.name, s.accuracy()))
 
     def common_noun(self, sample_dict):
-        print("[*] Creating records from Common Nouns"
+        print("[*] Creating records from Common Nouns")
         vocab_path = os.path.join("cache", "common_noun_vocab.pickle")
         self._process_set(sample_dict, vocab_path, self._COMMON_NOUN)
 
