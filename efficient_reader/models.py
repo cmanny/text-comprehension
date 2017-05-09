@@ -151,7 +151,7 @@ class ASReader(object):
             # create the vocabulary x batch sized list votes for words
         self.y_hat = tf.stack([tf.unsorted_segment_sum(attentions, sentence_ids, self.vocab_size) for (attentions, sentence_ids) in unpacked_s])
 
-    def _cg_train():
+    def _cg_train(self):
 
         with tf.name_scope("loss"):
             index = tf.range(0, self.batch_size) * self.vocab_size + tf.to_int32(answer)
