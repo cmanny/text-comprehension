@@ -71,6 +71,11 @@ class CBTDataSet(object):
         "valid": "cbtest_NE_valid_2000ex.txt",
         "test": "cbtest_NE_test_2500ex.txt"
     }
+    _COMMON_NOUN = {
+        "train": "cbtest_CN_train.txt",
+        "valid": "cbtest_CN_valid_2000ex.txt",
+        "test": "cbtest_CN_test_2500ex.txt"
+    }
 
     def __init__(self, data_dir="data", in_memory=False, name="cbt_data",
                  *args, **kwargs):
@@ -138,15 +143,13 @@ class CBTDataSet(object):
         vocab = {token: i for i, token in enumerate(words)}
         return vocab, words
 
-    def named_entities(self, sample_dict):
-        print("[*] Creating records from Named Entities")
+    def _process_set(self, sample_dict, vocab_path, group):
         self.vocab = {}
-        vocab_path = os.path.join("cache", "named_entities_vocab.pickle")
         if os.path.exists(vocab_path):
             with open(vocab_path, 'r') as vf:
                 self.vocab = pickle.load(vf)
         else:
-            self.vocab, words = self.make_vocab(self._NAMED_ENTITY)
+            self.vocab, words = self.make_vocab(group)
             with open(vocab_path, 'w') as vf:
                 pickle.dump(self.vocab, vf)
             embedding_str = "\n".join(w for w in words)
@@ -171,8 +174,9 @@ class CBTDataSet(object):
             return
         samples_str = "\n - ".join(y.name for x in filtered_dict.values() for y in x)
         print("[*] Generating samples for \n - " + samples_str)
-        raw_input()
-        for s, f_name in self._NAMED_ENTITY.items():
+
+        # stream data
+        for s, f_name in group.items():
             full_path = os.path.join(self.inner_data_dir, f_name)
             with open(full_path, 'r') as f:
                 file_string = f.read()
@@ -195,3 +199,13 @@ class CBTDataSet(object):
             print(group)
             for s in sample_list:
                 print("{} {}".format(s.name, s.accuracy()))
+
+    def common_noun(self, sample_dict):
+        print("[*] Creating records from Common Nouns"
+        vocab_path = os.path.join("cache", "common_noun_vocab.pickle")
+        self._process_set(sample_dict, vocab_path, self._COMMON_NOUN)
+
+    def named_entities(self, sample_dict):
+        print("[*] Creating records from Named Entities")
+        vocab_path = os.path.join("cache", "named_entities_vocab.pickle")
+        self._process_set(sample_dict, vocab_path, self._NAMED_ENTITY)

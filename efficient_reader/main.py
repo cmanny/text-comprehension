@@ -14,13 +14,6 @@ parser.add_argument(
     default=3,
     help="Epochs to train [3]"
 )
-# parser.add_argument(
-#     "-vocab_size",
-#     type=int,
-#     default=10000,
-#     help="The size of vocabulary [10000]"
-# )
-# Will be handled by the reader component
 parser.add_argument(
     "-learning_rate",
     type=float,
@@ -85,7 +78,7 @@ def main():
     cbt_dataset.named_entities(sampler_dict)
 
     print("running model {}".format(args.sample))
-    models.main(args.sample, args.model, args.forward_only)
+    ASReader().run(args.sample, args.model, args.forward_only)
 
 
 if __name__ == '__main__':
