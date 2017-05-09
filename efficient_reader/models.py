@@ -146,12 +146,12 @@ class ASReader(object):
 
             s = tf.squeeze(tf.matmul(alpha, query_importance), [2])
 
-            unpacked_s = zip(tf.unstack(s, self.batch_size), tf.unstack(documents, self.batch_size))
+            unpacked_s = zip(tf.unstack(s, self.batch_size), tf.unstack(self.context_batch, self.batch_size))
 
             # create the vocabulary x batch sized list votes for words
         self.y_hat = tf.stack([tf.unsorted_segment_sum(attentions, sentence_ids, self.vocab_size) for (attentions, sentence_ids) in unpacked_s])
 
-    def _cg_train(y_hat, regularizer, document, doc_weight, answer):
+    def _cg_train():
 
         with tf.name_scope("loss"):
             index = tf.range(0, self.batch_size) * self.vocab_size + tf.to_int32(answer)
