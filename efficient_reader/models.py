@@ -174,7 +174,7 @@ class ASReader(object):
 
             # use clipping on gradients to prevent explosion or implosion
             capped_grads_and_vars = [(tf.clip_by_value(grad, -5, 5), var) for (grad, var) in grads_and_vars]
-            self.train_op = optimizer.apply_gradients(capped_grads_and_vars, global_step=global_step)
+            self.train_op = optimizer.apply_gradients(capped_grads_and_vars, global_step=self.global_step)
 
         tf.summary.scalar('loss', self.loss)
         tf.summary.scalar('accuracy', self.accuracy)
