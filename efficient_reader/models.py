@@ -67,7 +67,7 @@ class ASReader(object):
         context_bs, query_bs, answer_bs = tf.train.shuffle_batch(
             [context, query, answer], batch_size=self.batch_size,
             capacity=2000,
-            min_after_dequeue=1000)
+            min_after_dequeue=1000
         )
 
         sparse_context_batch = sparse_ops.deserialize_many_sparse(context_bs, dtype=tf.int64)
@@ -182,13 +182,14 @@ class ASReader(object):
     def run(self, sample_name, model_name, forward_only):
         model_path = 'models/' + model_name
         if not os.path.exists(model_path):
-          os.makedirs(model_path)
+            os.makedirs(model_path)
 
-
+        # Build computation graph, first read samples, then infer, then optimize
         self._cg_read("full_test" if forward_only else sample_name)
         self._cg_inference()
         self._cg_train()
 
+        # Display histograms of all trainable variables
         for var in tf.trainable_variables():
             tf.summary.histogram(var.name, var)
         summary_op = tf.summary.merge_all()
@@ -210,7 +211,6 @@ class ASReader(object):
 
             model = tf.train.latest_checkpoint(model_path)
             if model:
-              print('Restoring ' + model)
               saver.restore(sess, model)
 
             coord = tf.train.Coordinator()
@@ -218,26 +218,28 @@ class ASReader(object):
 
             start_time = time.time()
             accumulated_accuracy = 0
+
+            # The
             try:
-              if not forward_only:
-                while not coord.should_stop():
+                if not forward_only:
+                    while not coord.should_stop():
 
-                  loss_t, _, step, acc = sess.run(
-                      [self.loss, self.train_op, self.global_step, self.accuracy]
-                  )
-                  elapsed_time, start_time = time.time() - start_time, time.time()
+                        loss_t, _, step, acc = sess.run(
+                          [self.loss, self.train_op, self.global_step, self.accuracy]
+                        )
+                        elapsed_time, start_time = time.time() - start_time, time.time()
 
-                  if step % 10 == 0:
-                    summary_str = sess.run(summary_op)
-                    summary_writer.add_summary(summary_str, step)
-                  if step % 100 == 0:
-                    saver.save(sess, model_path + "/run", global_step=step)
-              else:
-                while not coord.should_stop():
-                  acc = sess.run(accuracy)
-                  print(acc)
+                        if step % 10 == 0:
+                            summary_str = sess.run(summary_op)
+                            summary_writer.add_summary(summary_str, step)
+                        if step % 100 == 0:
+                            saver.save(sess, model_path + "/run", global_step=step)
+                else:
+                    while not coord.should_stop():
+                        acc = sess.run(accuracy)
+                        print(acc)
             except tf.errors.OutOfRangeError:
-              print('Done!')
+                print('Done!')
             finally:
-              coord.request_stop()
+                coord.request_stop()
             coord.join(threads)
