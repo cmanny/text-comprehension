@@ -154,7 +154,7 @@ class ASReader(object):
     def _cg_train(self):
 
         with tf.name_scope("loss"):
-            index = tf.range(0, self.batch_size) * self.vocab_size + tf.to_int32(answer)
+            index = tf.range(0, self.batch_size) * self.vocab_size + tf.to_int32(self.answer_batch)
             flat = tf.reshape(self.y_hat, [-1])
             relevant = tf.gather(flat, index)
             relevant = tf.check_numerics(relevant, "relevant")
