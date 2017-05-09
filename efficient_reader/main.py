@@ -78,7 +78,7 @@ def main():
     cbt_dataset.named_entities(sampler_dict)
 
     print("running model {}".format(args.sample))
-    ASReader().run(args.sample, args.model, args.forward_only)
+    models.ASReader().run(args.sample, args.model, args.forward_only)
 
 
 if __name__ == '__main__':
