@@ -27,7 +27,7 @@ class Sampler(object):
         return tf.train.Example(
              features = tf.train.Features(
                  feature = {
-                     'document': tf.train.Feature(
+                     'context': tf.train.Feature(
                          int64_list=tf.train.Int64List(value=ic)),
                      'query': tf.train.Feature(
                          int64_list=tf.train.Int64List(value=iq)),

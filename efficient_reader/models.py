@@ -56,11 +56,11 @@ class ASReader(object):
         features = tf.parse_single_example(
             serialized_example,
             features={
-                'document': tf.VarLenFeature(tf.int64),
+                'context': tf.VarLenFeature(tf.int64),
                 'query': tf.VarLenFeature(tf.int64),
                 'answer': tf.FixedLenFeature([], tf.int64)
         })
-        context = sparse_ops.serialize_sparse(features['document'])
+        context = sparse_ops.serialize_sparse(features['context'])
         query = sparse_ops.serialize_sparse(features['query'])
         answer = features['answer']
 
@@ -135,17 +135,14 @@ class ASReader(object):
             h_query = tf.concat(axis=2, values=output_states)
 
         with tf.name_scope("attention"):
+            # Matrix of all query and context states
             M = tf.matmul(h_context, h_query, adjoint_b=True)
             M_mask = tf.to_float(tf.matmul(tf.expand_dims(self.context_weights, -1), tf.expand_dims(self.query_weights, 1)))
 
             alpha = softmax(M, 1, M_mask)
             beta = softmax(M, 2, M_mask)
-
-            #query_importance = tf.expand_dims(tf.reduce_mean(beta, reduction_indices=1), -1)
             query_importance = tf.expand_dims(tf.reduce_sum(beta, 1) / tf.to_float(tf.expand_dims(context_len, -1)), -1)
-
             s = tf.squeeze(tf.matmul(alpha, query_importance), [2])
-
             unpacked_s = zip(tf.unstack(s, self.batch_size), tf.unstack(self.context_batch, self.batch_size))
 
             # create the vocabulary x batch sized list votes for words
@@ -195,6 +192,7 @@ class ASReader(object):
         summary_op = tf.summary.merge_all()
 
         with tf.Session() as sess:
+            # Set up embedding visualiser
             summary_writer = tf.summary.FileWriter(model_path, sess.graph)
             config = projector.ProjectorConfig()
             embedding = config.embeddings.add()
@@ -204,11 +202,15 @@ class ASReader(object):
 
             saver_variables = tf.global_variables()
             saver = tf.train.Saver(saver_variables, max_to_keep=100)
+
+            # Need to run session once first to set up
             sess.run([
                 tf.global_variables_initializer(),
                 tf.local_variables_initializer()]
             )
 
+            # get latest checkpoint if exists
+            # can select an arbitrary name with saver.restore(sess, name)
             model = tf.train.latest_checkpoint(model_path)
             if model:
               saver.restore(sess, model)
@@ -228,7 +230,7 @@ class ASReader(object):
                           [self.loss, self.train_op, self.global_step, self.accuracy]
                         )
                         elapsed_time, start_time = time.time() - start_time, time.time()
-                        print(acc, loss_t, elapsed_time)
+                        print(step, acc, loss_t, elapsed_time)
 
                         if step % 10 == 0:
                             summary_str = sess.run(summary_op)
@@ -237,7 +239,7 @@ class ASReader(object):
                             saver.save(sess, model_path + "/run", global_step=step)
                 else:
                     while not coord.should_stop():
-                        acc = sess.run(accuracy)
+                        acc = sess.run(self.accuracy)
                         print(acc)
             except tf.errors.OutOfRangeError:
                 print('Done!')
